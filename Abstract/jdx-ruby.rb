@@ -193,11 +193,11 @@ class JdxRuby < Formula
     (lib/"pkgconfig").mkpath
     Dir[openssl.opt_lib/"pkgconfig/*.pc"].each do |pc|
       cp pc, lib/"pkgconfig"
-      inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{openssl.opt_prefix}", "prefix=${pcfiledir}/../.."
+      inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
     end
     Dir[libyaml.opt_lib/"pkgconfig/*.pc"].each do |pc|
       cp pc, lib/"pkgconfig"
-      inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{libyaml.opt_prefix}", "prefix=${pcfiledir}/../.."
+      inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
     end
 
     if OS.linux?
@@ -207,11 +207,11 @@ class JdxRuby < Formula
       cp_r Dir[zlib.opt_lib/"libz*.a"], lib
       Dir[libffi.opt_lib/"pkgconfig/*.pc"].each do |pc|
         cp pc, lib/"pkgconfig"
-        inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{libffi.opt_prefix}", "prefix=${pcfiledir}/../.."
+        inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
       end
       Dir[zlib.opt_lib/"pkgconfig/*.pc"].each do |pc|
         cp pc, lib/"pkgconfig"
-        inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{zlib.opt_prefix}", "prefix=${pcfiledir}/../.."
+        inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
       end
     end
 
