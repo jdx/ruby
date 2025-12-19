@@ -64,13 +64,18 @@ jobs:
         run: bin/setup
 
       - name: Build jdx Ruby
-        run: |
-          if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
-            export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
-          fi
-          mkdir -p rubies/
-          cd rubies
-          brew jdx-package --verbose jdx-ruby@${{ inputs.version }}
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
+              export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
+            fi
+            mkdir -p rubies/
+            cd rubies
+            brew jdx-package --verbose jdx-ruby@${{ inputs.version }}
 
       - name: Codesign macOS binaries
         if: runner.os == 'macOS'
@@ -291,3 +296,30 @@ jobs:
           else
             gh release edit "${VERSION}" --draft=false --latest=false $prerelease_flag --repo "${{ github.repository }}"
           fi
+
+  notify:
+    needs: [build, combine-hashes, create-release, provenance, upload-assets, publish-release]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send email via Resend
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "${{ needs.publish-release.result }}" == "success" ]]; then
+            subject="✅ Ruby ${VERSION} released successfully"
+            body="<p>Ruby ${VERSION} has been released successfully.</p><p><a href='https://github.com/${{ github.repository }}/releases/tag/${VERSION}'>View Release</a></p>"
+          else
+            subject="❌ Ruby ${VERSION} release failed"
+            body="<p>Ruby ${VERSION} release failed.</p><p><a href='https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Workflow Run</a></p>"
+          fi
+          curl -X POST 'https://api.resend.com/emails' \
+            -H "Authorization: Bearer ${RESEND_API_KEY}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"from\": \"Ruby Releases <ruby@mise.jdx.dev>\",
+              \"to\": [\"${{ secrets.NOTIFY_EMAIL }}\"],
+              \"subject\": \"${subject}\",
+              \"html\": \"${body}\"
+            }"
