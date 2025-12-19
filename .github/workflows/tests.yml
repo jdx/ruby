@@ -20,26 +20,22 @@ jobs:
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@main
       - run: brew test-bot --only-tap-syntax
-   
-  # list_edited_formulas:
-  # build_edited_formulas:
 
-  # build:
-  #   needs: syntax
-  #   if: github.event_name != 'push'
-  #   uses: ./.github/workflows/build.yml
-  #   with:
-  #     formula: jdx-ruby@3.4.5
+  build:
+    needs: syntax
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/build.yml
+    with:
+      formula: jdx-ruby@3.4.1
 
-  # This job is used as a required status check, instead of requiring each build matrix element.
-  # When using ephemeral runners, the name of those runs change every time so they cannot be set as required.
-  # conclusion:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name != 'push' && !cancelled()
-  #   steps:
-  #     - name: Result
-  #       env:
-  #         RESULT: ${{ needs.build.result }}
-  #       run: |
-  #         [[ "${RESULT}" == success ]]
+  # This job is used as a required status check
+  conclusion:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && !cancelled()
+    steps:
+      - name: Result
+        env:
+          RESULT: ${{ needs.build.result }}
+        run: |
+          [[ "${RESULT}" == success ]]

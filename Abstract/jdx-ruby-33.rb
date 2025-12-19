@@ -183,6 +183,17 @@ class JdxRuby33 < Formula
       cp libxcrypt.lib/"libcrypt.a", lib/"libcrypt.a"
     end
 
+    # Copy headers from portable dependencies for native gem compilation
+    # This allows gems like openssl and psych to find headers after deps are uninstalled
+    # Headers go in #{prefix}/include which Ruby's mkmf finds via CONFIG["includedir"]
+    include.mkpath
+    cp_r Dir[libyaml.opt_include/"*"], include
+    cp_r Dir[openssl.opt_include/"*"], include
+    if OS.linux?
+      cp_r Dir[libffi.opt_include/"*"], include
+      cp_r Dir[zlib.opt_include/"*"], include
+    end
+
     libexec.mkpath
     cp openssl.libexec/"etc/openssl/cert.pem", libexec/"cert.pem"
     openssl_rb = lib/"ruby/#{abi_version}/openssl.rb"
