@@ -179,10 +179,12 @@ class JdxRuby34 < Formula
         # C++ compiler might have been disabled because we break it with glibc@* builds
         s.sub!(/(CONFIG\["CXX"\] = )"false"/, '\\1"c++"') if build.without? "yjit"
       end
-
-      # Ship libcrypt.a so that building native gems doesn't need system libcrypt installed.
-      cp libxcrypt.lib/"libcrypt.a", lib/"libcrypt.a"
     end
+
+    # Copy headers, static libraries, and pkg-config files for native gem compilation
+    portable_deps = [libyaml, openssl]
+    portable_deps += [libffi, zlib, libxcrypt] if OS.linux?
+    copy_portable_deps_for_native_gems(portable_deps)
 
     libexec.mkpath
     cp openssl.libexec/"etc/openssl/cert.pem", libexec/"cert.pem"
@@ -196,6 +198,8 @@ class JdxRuby34 < Formula
   def test
     cp_r Dir["#{prefix}/*"], testpath
     ENV["PATH"] = "/usr/bin:/bin"
+    # Set PKG_CONFIG_PATH so gem install can find our bundled pkg-config files
+    ENV["PKG_CONFIG_PATH"] = "#{testpath}/lib/pkgconfig"
     ruby = (testpath/"bin/ruby").realpath
     unless version.to_s =~ /head/i
       assert_equal version.to_s.split("-").first, shell_output("#{ruby} -e 'puts RUBY_VERSION'").chomp
@@ -224,6 +228,12 @@ class JdxRuby34 < Formula
     system testpath/"bin/gem", "install", "byebug"
     assert_match "byebug",
       shell_output("#{testpath}/bin/byebug --version")
+
+    # Test gems that require portable dependency headers
+    # These were failing before we included headers in the tarball
+    # See: https://github.com/jdx/mise/discussions/7268#discussioncomment-15298593
+    system testpath/"bin/gem", "install", "openssl"  # requires openssl headers
+    system testpath/"bin/gem", "install", "psych"    # requires libyaml headers
 
     super
   end

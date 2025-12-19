@@ -193,10 +193,12 @@ class JdxRuby32 < Formula
         # C++ compiler might have been disabled because we break it with glibc@* builds
         s.sub!(/(CONFIG\["CXX"\] = )"false"/, '\\1"c++"') if build.without? "yjit"
       end
-
-      # Ship libcrypt.a so that building native gems doesn't need system libcrypt installed.
-      cp libxcrypt.lib/"libcrypt.a", lib/"libcrypt.a"
     end
+
+    # Copy headers, static libraries, and pkg-config files for native gem compilation
+    portable_deps = [libyaml, openssl]
+    portable_deps += [libffi, zlib, libxcrypt] if OS.linux?
+    copy_portable_deps_for_native_gems(portable_deps)
 
     libexec.mkpath
     cp openssl.libexec/"etc/openssl/cert.pem", libexec/"cert.pem"
@@ -210,6 +212,8 @@ class JdxRuby32 < Formula
   def test
     cp_r Dir["#{prefix}/*"], testpath
     ENV["PATH"] = "/usr/bin:/bin"
+    # Set PKG_CONFIG_PATH so gem install can find our bundled pkg-config files
+    ENV["PKG_CONFIG_PATH"] = "#{testpath}/lib/pkgconfig"
     ruby = (testpath/"bin/ruby").realpath
     assert_equal version.to_s.split("-").first, shell_output("#{ruby} -e 'puts RUBY_VERSION'").chomp
     assert_equal ruby.to_s, shell_output("#{ruby} -e 'puts RbConfig.ruby'").chomp
