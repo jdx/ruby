@@ -176,15 +176,43 @@ class JdxRuby < Formula
       cp libxcrypt.lib/"libcrypt.a", lib/"libcrypt.a"
     end
 
-    # Copy headers from portable dependencies for native gem compilation
-    # This allows gems like openssl and psych to find headers after deps are uninstalled
-    # Headers go in #{prefix}/include which Ruby's mkmf finds via CONFIG["includedir"]
+    # Copy headers and libraries from portable dependencies for native gem compilation
+    # This allows gems like openssl and psych to find headers/libs after deps are uninstalled
+    # See: https://github.com/jdx/mise/discussions/7268#discussioncomment-15298593
     include.mkpath
     cp_r Dir[libyaml.opt_include/"*"], include
     cp_r Dir[openssl.opt_include/"*"], include
+
+    # Copy static libraries for native gem compilation
+    cp_r Dir[libyaml.opt_lib/"libyaml*.a"], lib
+    cp_r Dir[openssl.opt_lib/"lib*.a"], lib
+
+    # Copy pkg-config files so extconf.rb can find libraries
+    # Use ${pcfiledir} for relocatable paths - this expands to the directory containing the .pc file
+    # Since .pc files are in lib/pkgconfig/, ${pcfiledir}/../.. gives us the prefix
+    (lib/"pkgconfig").mkpath
+    Dir[openssl.opt_lib/"pkgconfig/*.pc"].each do |pc|
+      cp pc, lib/"pkgconfig"
+      inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{openssl.opt_prefix}", "prefix=${pcfiledir}/../.."
+    end
+    Dir[libyaml.opt_lib/"pkgconfig/*.pc"].each do |pc|
+      cp pc, lib/"pkgconfig"
+      inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{libyaml.opt_prefix}", "prefix=${pcfiledir}/../.."
+    end
+
     if OS.linux?
       cp_r Dir[libffi.opt_include/"*"], include
       cp_r Dir[zlib.opt_include/"*"], include
+      cp_r Dir[libffi.opt_lib/"libffi*.a"], lib
+      cp_r Dir[zlib.opt_lib/"libz*.a"], lib
+      Dir[libffi.opt_lib/"pkgconfig/*.pc"].each do |pc|
+        cp pc, lib/"pkgconfig"
+        inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{libffi.opt_prefix}", "prefix=${pcfiledir}/../.."
+      end
+      Dir[zlib.opt_lib/"pkgconfig/*.pc"].each do |pc|
+        cp pc, lib/"pkgconfig"
+        inreplace lib/"pkgconfig"/File.basename(pc), "prefix=#{zlib.opt_prefix}", "prefix=${pcfiledir}/../.."
+      end
     end
 
     libexec.mkpath
@@ -199,6 +227,8 @@ class JdxRuby < Formula
   def test
     cp_r Dir["#{prefix}/*"], testpath
     ENV["PATH"] = "/usr/bin:/bin"
+    # Set PKG_CONFIG_PATH so gem install can find our bundled pkg-config files
+    ENV["PKG_CONFIG_PATH"] = "#{testpath}/lib/pkgconfig"
     ruby = (testpath/"bin/ruby").realpath
     unless version.to_s =~ /head/i
       assert_equal version.to_s.split("-").first, shell_output("#{ruby} -e 'puts RUBY_VERSION'").chomp
