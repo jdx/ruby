@@ -185,7 +185,7 @@ class JdxRuby33 < Formula
 
     # Copy headers, static libraries, and pkg-config files for native gem compilation
     portable_deps = [libyaml, openssl]
-    portable_deps += [libffi, zlib] if OS.linux?
+    portable_deps += [libffi, zlib, libxcrypt] if OS.linux?
     copy_portable_deps_for_native_gems(portable_deps)
 
     libexec.mkpath
