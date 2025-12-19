@@ -183,44 +183,10 @@ class JdxRuby33 < Formula
       cp libxcrypt.lib/"libcrypt.a", lib/"libcrypt.a"
     end
 
-    # Copy headers and libraries from portable dependencies for native gem compilation
-    # This allows gems like openssl and psych to find headers/libs after deps are uninstalled
-    # See: https://github.com/jdx/mise/discussions/7268#discussioncomment-15298593
-    include.mkpath
-    cp_r Dir[libyaml.opt_include/"*"], include
-    cp_r Dir[openssl.opt_include/"*"], include
-
-    # Copy static libraries for native gem compilation
-    cp_r Dir[libyaml.opt_lib/"libyaml*.a"], lib
-    cp_r Dir[openssl.opt_lib/"lib*.a"], lib
-
-    # Copy pkg-config files so extconf.rb can find libraries
-    # Use ${pcfiledir} for relocatable paths - this expands to the directory containing the .pc file
-    # Since .pc files are in lib/pkgconfig/, ${pcfiledir}/../.. gives us the prefix
-    (lib/"pkgconfig").mkpath
-    Dir[openssl.opt_lib/"pkgconfig/*.pc"].each do |pc|
-      cp pc, lib/"pkgconfig"
-      inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
-    end
-    Dir[libyaml.opt_lib/"pkgconfig/*.pc"].each do |pc|
-      cp pc, lib/"pkgconfig"
-      inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
-    end
-
-    if OS.linux?
-      cp_r Dir[libffi.opt_include/"*"], include
-      cp_r Dir[zlib.opt_include/"*"], include
-      cp_r Dir[libffi.opt_lib/"libffi*.a"], lib
-      cp_r Dir[zlib.opt_lib/"libz*.a"], lib
-      Dir[libffi.opt_lib/"pkgconfig/*.pc"].each do |pc|
-        cp pc, lib/"pkgconfig"
-        inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
-      end
-      Dir[zlib.opt_lib/"pkgconfig/*.pc"].each do |pc|
-        cp pc, lib/"pkgconfig"
-        inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
-      end
-    end
+    # Copy headers, static libraries, and pkg-config files for native gem compilation
+    portable_deps = [libyaml, openssl]
+    portable_deps += [libffi, zlib] if OS.linux?
+    copy_portable_deps_for_native_gems(portable_deps)
 
     libexec.mkpath
     cp openssl.libexec/"etc/openssl/cert.pem", libexec/"cert.pem"

@@ -50,6 +50,32 @@ module PortableFormulaMixin
 
     super
   end
+
+  # Copy headers, static libraries, and pkg-config files from portable dependencies
+  # This allows gems like openssl and psych to compile native extensions after deps are uninstalled
+  # See: https://github.com/jdx/mise/discussions/7268#discussioncomment-15298593
+  def copy_portable_deps_for_native_gems(deps)
+    include.mkpath
+
+    deps.each do |dep|
+      # Copy headers
+      cp_r Dir[dep.opt_include/"*"], include if dep.opt_include.exist?
+
+      # Copy static libraries
+      cp_r Dir[dep.opt_lib/"*.a"], lib if dep.opt_lib.exist?
+
+      # Copy and patch pkg-config files with relocatable paths
+      next unless (dep.opt_lib/"pkgconfig").exist?
+
+      (lib/"pkgconfig").mkpath
+      Dir[dep.opt_lib/"pkgconfig/*.pc"].each do |pc|
+        cp pc, lib/"pkgconfig"
+        # Use ${pcfiledir} for relocatable paths - expands to directory containing .pc file
+        # Since .pc files are in lib/pkgconfig/, ${pcfiledir}/../.. gives us the prefix
+        inreplace lib/"pkgconfig"/File.basename(pc), /^prefix=.*$/, "prefix=${pcfiledir}/../.."
+      end
+    end
+  end
 end
 
 class PortableFormula < Formula
