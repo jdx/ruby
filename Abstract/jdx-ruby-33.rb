@@ -178,9 +178,6 @@ class JdxRuby33 < Formula
         # C++ compiler might have been disabled because we break it with glibc@* builds
         s.sub!(/(CONFIG\["CXX"\] = )"false"/, '\\1"c++"') if build.without? "yjit"
       end
-
-      # Ship libcrypt.a so that building native gems doesn't need system libcrypt installed.
-      cp libxcrypt.lib/"libcrypt.a", lib/"libcrypt.a"
     end
 
     # Copy headers, static libraries, and pkg-config files for native gem compilation
