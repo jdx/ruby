@@ -12,6 +12,11 @@ on:
     # Run every 12 hours to pick up new versions
     - cron: "30 */12 * * *"
 
+# Prevent multiple release-new runs from overlapping
+concurrency:
+  group: release-new
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
