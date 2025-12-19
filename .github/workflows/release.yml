@@ -64,13 +64,18 @@ jobs:
         run: bin/setup
 
       - name: Build jdx Ruby
-        run: |
-          if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
-            export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
-          fi
-          mkdir -p rubies/
-          cd rubies
-          brew jdx-package --verbose jdx-ruby@${{ inputs.version }}
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
+              export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
+            fi
+            mkdir -p rubies/
+            cd rubies
+            brew jdx-package --verbose jdx-ruby@${{ inputs.version }}
 
       - name: Codesign macOS binaries
         if: runner.os == 'macOS'
