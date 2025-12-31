@@ -63,6 +63,10 @@ jobs:
       - name: Tap repo
         run: bin/setup
 
+      - name: Fix Bundler permissions (ARM Linux)
+        if: runner.os == 'Linux' && runner.arch == 'ARM64'
+        run: chmod -R go-w /home/linuxbrew/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle || true
+
       - name: Build jdx Ruby
         uses: nick-fields/retry@v3
         with:
