@@ -70,6 +70,10 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
+            # Fix world-writable directory issue on ARM Linux that causes Bundler to fail
+            if [[ "${{ runner.os }}" == "Linux" && "${{ runner.arch }}" == "ARM64" ]]; then
+              chmod -R go-w /home/linuxbrew/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle || true
+            fi
             if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
               export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
             fi
