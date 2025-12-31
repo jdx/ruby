@@ -63,6 +63,10 @@ jobs:
       - name: Tap repo
         run: bin/setup
 
+      - name: Fix Bundler permissions (ARM Linux)
+        if: runner.os == 'Linux' && runner.arch == 'ARM64'
+        run: chmod -R go-w /home/linuxbrew/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle || true
+
       - name: Build jdx Ruby
         uses: nick-fields/retry@v3
         with:
@@ -70,10 +74,6 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
-            # Fix world-writable directory issue on ARM Linux that causes Bundler to fail
-            if [[ "${{ runner.os }}" == "Linux" && "${{ runner.arch }}" == "ARM64" ]]; then
-              chmod -R go-w /home/linuxbrew/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle || true
-            fi
             if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
               export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
             fi
