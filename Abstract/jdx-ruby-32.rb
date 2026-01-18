@@ -252,7 +252,7 @@ class JdxRuby32 < Formula
     assert_match "200",
       shell_output("#{ruby} -ropen-uri -e 'URI.open(\"https://google.com\") { |f| puts f.status.first }'").chomp
     system ruby, "-rrbconfig", "-e", <<~EOS
-      Gem.discover_gems_on_require = false
+      Gem.discover_gems_on_require = false if Gem.respond_to?(:discover_gems_on_require=)
       require "portable_ruby_gems"
       require "debug"
       require "fiddle"
