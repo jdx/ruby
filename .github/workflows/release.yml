@@ -215,7 +215,7 @@ jobs:
           fi
 
           # Delete ALL existing releases matching this version (handles orphaned releases)
-          for release_id in $(gh api repos/${{ github.repository }}/releases --jq ".[] | select(.name == \"${VERSION}\" or .tag_name == \"${VERSION}\") | .id"); do
+          for release_id in $(gh api repos/${{ github.repository }}/releases --paginate --jq ".[] | select(.name == \"${VERSION}\" or .tag_name == \"${VERSION}\") | .id"); do
             echo "Deleting release $release_id"
             gh api -X DELETE "repos/${{ github.repository }}/releases/$release_id" || true
           done

@@ -14,10 +14,10 @@ class JdxRuby34 < Formula
       homepage "https://www.ruby-lang.org/"
       license "Ruby"
 
-      # This regex restricts matching to versions other than X.Y.0.
+      # Match stable Ruby versions (X.Y.Z format)
       livecheck do
         formula "ruby"
-        regex(/href=.*?ruby[._-]v?(\d+\.\d+\.(?:(?!0)\d+)(?:\.\d+)*)\.t/i)
+        regex(/href=.*?ruby[._-]v?(\d+\.\d+\.\d+)\.t/i)
       end
 
       keg_only "portable formulae are keg-only"
