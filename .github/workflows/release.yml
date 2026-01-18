@@ -155,10 +155,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # Convert version format: 3.4.1 -> v3_4_1
+          # Convert version format: 3.4.1 -> v3_4_1 (but Ruby 4.x uses v4.0.0 format)
           ruby_tag="v${VERSION//./_}"
-          # Fetch release info from ruby/ruby repo
-          release_info=$(gh release view "$ruby_tag" --repo ruby/ruby --json publishedAt,body 2>/dev/null || echo "{}")
+          # Fetch release info from ruby/ruby repo (try underscore format first, then dot format)
+          release_info=$(gh release view "$ruby_tag" --repo ruby/ruby --json publishedAt,body 2>/dev/null || \
+                         gh release view "v${VERSION}" --repo ruby/ruby --json publishedAt,body 2>/dev/null || echo "{}")
 
           release_date=$(echo "$release_info" | jq -r '.publishedAt // empty')
           if [[ -n "$release_date" ]]; then
