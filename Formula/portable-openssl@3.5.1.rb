@@ -83,6 +83,7 @@ class PortableOpensslAT351 < PortableFormula
     # We therefore need to set the certificate path at runtime via an environment variable.
     # We however don't want to touch _other_ OpenSSL usages, so we change the variable name to differ.
     inreplace "include/internal/common.h", "\"SSL_CERT_FILE\"", "\"PORTABLE_RUBY_SSL_CERT_FILE\""
+    inreplace "include/internal/common.h", "\"SSL_CERT_DIR\"", "\"PORTABLE_RUBY_SSL_CERT_DIR\""
 
     openssldir.mkpath
     system "perl", "./Configure", *(configure_args + arch_args)
