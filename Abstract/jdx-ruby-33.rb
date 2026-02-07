@@ -214,6 +214,7 @@ class JdxRuby33 < Formula
     openssl_rb = lib/"ruby/#{abi_version}/openssl.rb"
     inreplace openssl_rb, "require 'openssl.so'", <<~EOS.chomp
       ENV["PORTABLE_RUBY_SSL_CERT_FILE"] = ENV["SSL_CERT_FILE"] || File.expand_path("../../libexec/cert.pem", RbConfig.ruby)
+      ENV["PORTABLE_RUBY_SSL_CERT_DIR"] = ENV["SSL_CERT_DIR"] unless ENV["SSL_CERT_DIR"].to_s.empty?
       \\0
     EOS
   end
