@@ -14,29 +14,25 @@ class PortableZlibAT131 < PortableFormula
     formula "zlib"
   end
 
-  # https://zlib.net/zlib_how.html
-  resource "test_artifact" do
-    url "https://zlib.net/zpipe.c"
-    version "20051211"
-    sha256 "68140a82582ede938159630bca0fb13a93b4bf1cb2e85b08943c26242cf8f3a6"
-
-    livecheck do
-      skip "Static test artifact"
-    end
-  end
-
   def install
     system "./configure", "--static", "--prefix=#{prefix}"
     system "make", "install"
   end
 
   test do
-    testpath.install resource("test_artifact")
-    system ENV.cc, "zpipe.c", "-I#{include}", "-L#{lib}", "-lz", "-o", "zpipe"
-
-    touch "foo.txt"
-    output = "./zpipe < foo.txt > foo.txt.z"
-    system output
-    assert File.exist?("foo.txt.z")
+    (testpath/"test.c").write <<~C
+      #include <zlib.h>
+      #include <stdio.h>
+      #include <string.h>
+      int main() {
+        uLong crc = crc32(0L, Z_NULL, 0);
+        const char *data = "test";
+        crc = crc32(crc, (const Bytef *)data, strlen(data));
+        printf("%lu\\n", crc);
+        return crc == 3632233996UL ? 0 : 1;
+      }
+    C
+    system ENV.cc, "test.c", "-I#{include}", "-L#{lib}", "-lz", "-o", "test"
+    system "./test"
   end
 end
