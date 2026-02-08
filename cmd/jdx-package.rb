@@ -134,6 +134,9 @@ module Homebrew
               new_top = "#{tmpdir}/ruby-#{version}"
               FileUtils.mv inner_dir, new_top
               FileUtils.rm_rf outer_dir
+              # Fix file permissions: Homebrew sets installed files to 0444 (read-only),
+              # which prevents gem install from upgrading bundled gems.
+              system "chmod", "-R", "u+w", new_top
               system "tar", "-czf", r, "-C", tmpdir, "ruby-#{version}"
             else
               # Fallback: just rename without restructuring
