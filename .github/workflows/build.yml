@@ -23,10 +23,17 @@ jobs:
   build:
     strategy:
       matrix:
-        runner:
-          - macos-14 # arm
-          - ubuntu-22.04
-          - ubuntu-22.04-arm
+        include:
+          - runner: macos-14
+            yjit: true
+          - runner: ubuntu-22.04
+            yjit: true
+          - runner: ubuntu-22.04
+            yjit: false
+          - runner: ubuntu-22.04-arm
+            yjit: true
+          - runner: ubuntu-22.04-arm
+            yjit: false
       fail-fast: false
     runs-on: ${{ matrix.runner }}
     steps:
@@ -67,14 +74,18 @@ jobs:
           if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
             export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
           fi
+          YJIT_FLAG=""
+          if [[ "${{ matrix.yjit }}" == "false" ]]; then
+            YJIT_FLAG="--without-yjit"
+          fi
           mkdir -p rubies/
           cd rubies
-          brew jdx-package --verbose ${{ inputs.formula }}
+          brew jdx-package --verbose $YJIT_FLAG ${{ inputs.formula }}
 
       - name: Upload jdx Ruby
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: ${{ inputs.formula }}_${{ matrix.runner }}
+          name: ${{ inputs.formula }}_${{ matrix.runner }}_yjit-${{ matrix.yjit }}
           path: ${{ github.workspace }}/rubies
 
       - name: Test Portable Ruby
@@ -82,9 +93,9 @@ jobs:
           mkdir -p jdx-ruby/
           tar --strip-components 1 -C jdx-ruby -xf rubies/*.tar.gz
           export PATH="${PWD}/jdx-ruby/bin:${PATH}"
-          if [[ "${{ inputs.formula }}" == "jdx-ruby@0.49" ]]; then
-            ruby --version
-          else
+          if [[ "${{ matrix.yjit }}" == "true" ]]; then
             ruby --version --yjit
-            ruby -r debug -r bigdecimal -r json -r yaml -r reline -e "true"
+          else
+            ruby --version
           fi
+          ruby -r debug -r bigdecimal -r json -r yaml -r reline -e "true"
