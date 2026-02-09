@@ -34,10 +34,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - macos-14
-          - ubuntu-22.04
-          - ubuntu-22.04-arm
+        include:
+          - runner: macos-14
+            yjit: true
+          - runner: ubuntu-22.04
+            yjit: true
+          - runner: ubuntu-22.04
+            yjit: false
+          - runner: ubuntu-22.04-arm
+            yjit: true
+          - runner: ubuntu-22.04-arm
+            yjit: false
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@main
@@ -79,9 +86,13 @@ jobs:
             if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
               export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
             fi
+            YJIT_FLAG=""
+            if [[ "${{ matrix.yjit }}" == "false" ]]; then
+              YJIT_FLAG="--without-yjit"
+            fi
             mkdir -p rubies/
             cd rubies
-            brew jdx-package --verbose jdx-ruby@${{ inputs.version }}
+            brew jdx-package --verbose $YJIT_FLAG jdx-ruby@${{ inputs.version }}
 
       # Disabled: Code signing causes issues with native gems compiled locally
       # See: https://github.com/jdx/mise/discussions/7268
@@ -118,7 +129,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ruby-${{ inputs.version }}-${{ matrix.runner }}
+          name: ruby-${{ inputs.version }}-${{ matrix.runner }}-yjit-${{ matrix.yjit }}
           path: rubies/
 
   combine-hashes:
