@@ -35,12 +35,7 @@ class JdxRuby33 < Formula
         depends_on "portable-zlib@1.3.1" => :build
 
         if build.without? "yjit"
-          on_intel do
-            depends_on "glibc@2.13" => :build
-          end
-          on_arm do
-            depends_on "glibc@2.17" => :build
-          end
+          depends_on "glibc@2.17" => :build
           depends_on "linux-headers@4.4" => :build
         end
       end
