@@ -79,11 +79,90 @@ class PortableOpensslAT351 < PortableFormula
   end
 
   def install
-    # OpenSSL is not fully portable and certificate paths are backed into the library.
-    # We therefore need to set the certificate path at runtime via an environment variable.
-    # We however don't want to touch _other_ OpenSSL usages, so we change the variable name to differ.
-    inreplace "include/internal/common.h", "\"SSL_CERT_FILE\"", "\"PORTABLE_RUBY_SSL_CERT_FILE\""
-    inreplace "include/internal/common.h", "\"SSL_CERT_DIR\"", "\"PORTABLE_RUBY_SSL_CERT_DIR\""
+    # OpenSSL bakes OPENSSLDIR paths into the library at compile time. For portable
+    # builds, these paths point to the Homebrew build directory which won't exist at
+    # runtime. Rather than renaming SSL_CERT_FILE/SSL_CERT_DIR env vars (which breaks
+    # when the Ruby openssl gem replaces stdlib's openssl.rb bridge), we patch the
+    # default cert lookup to auto-detect system certificate paths at runtime.
+    #
+    # The standard SSL_CERT_FILE and SSL_CERT_DIR env vars work normally. When they're
+    # not set, the fallback tries well-known system paths before the compiled-in default.
+    inreplace "crypto/x509/x509_def.c", <<~ORIG.chomp, <<~PATCHED.chomp
+      #include "internal/e_os.h"
+    ORIG
+      #include "internal/e_os.h"
+      #include <unistd.h>
+    PATCHED
+
+    inreplace "crypto/x509/x509_def.c", <<~ORIG.chomp, <<~PATCHED.chomp
+      const char *X509_get_default_cert_file(void)
+      {
+      #if defined (_WIN32)
+          RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+          return x509_cert_fileptr;
+      #else
+          return X509_CERT_FILE;
+      #endif
+      }
+    ORIG
+      const char *X509_get_default_cert_file(void)
+      {
+      #if defined (_WIN32)
+          RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+          return x509_cert_fileptr;
+      #else
+          if (access(X509_CERT_FILE, R_OK) == 0)
+              return X509_CERT_FILE;
+          /* Auto-detect system certificate bundles */
+          static const char *system_cert_files[] = {
+              "/etc/ssl/certs/ca-certificates.crt", /* Debian/Ubuntu */
+              "/etc/pki/tls/certs/ca-bundle.crt",   /* RHEL/CentOS/Fedora */
+              "/etc/ssl/ca-bundle.pem",              /* SUSE */
+              "/etc/ssl/cert.pem",                   /* macOS/Alpine */
+              NULL
+          };
+          for (int i = 0; system_cert_files[i] != NULL; i++) {
+              if (access(system_cert_files[i], R_OK) == 0)
+                  return system_cert_files[i];
+          }
+          return X509_CERT_FILE;
+      #endif
+      }
+    PATCHED
+
+    inreplace "crypto/x509/x509_def.c", <<~ORIG.chomp, <<~PATCHED.chomp
+      const char *X509_get_default_cert_dir(void)
+      {
+      #if defined (_WIN32)
+          RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+          return x509_cert_dirptr;
+      #else
+          return X509_CERT_DIR;
+      #endif
+      }
+    ORIG
+      const char *X509_get_default_cert_dir(void)
+      {
+      #if defined (_WIN32)
+          RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+          return x509_cert_dirptr;
+      #else
+          if (access(X509_CERT_DIR, R_OK) == 0)
+              return X509_CERT_DIR;
+          /* Auto-detect system certificate directories */
+          static const char *system_cert_dirs[] = {
+              "/etc/ssl/certs",          /* Debian/Ubuntu/Alpine/SUSE */
+              "/etc/pki/tls/certs",      /* RHEL/CentOS/Fedora */
+              NULL
+          };
+          for (int i = 0; system_cert_dirs[i] != NULL; i++) {
+              if (access(system_cert_dirs[i], R_OK) == 0)
+                  return system_cert_dirs[i];
+          }
+          return X509_CERT_DIR;
+      #endif
+      }
+    PATCHED
 
     openssldir.mkpath
     system "perl", "./Configure", *(configure_args + arch_args)
