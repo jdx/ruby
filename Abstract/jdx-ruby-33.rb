@@ -204,26 +204,20 @@ class JdxRuby33 < Formula
     portable_deps += [libffi, zlib, libxcrypt] if OS.linux?
     copy_portable_deps_for_native_gems(portable_deps)
 
+    # Bundle CA certificates for environments without system certs (e.g. minimal containers).
+    # portable-openssl auto-detects system cert paths at the C level, but if none exist,
+    # this bundled cert.pem provides a last-resort fallback via SSL_CERT_FILE.
     libexec.mkpath
     cp openssl.libexec/"etc/openssl/cert.pem", libexec/"cert.pem"
     openssl_rb = lib/"ruby/#{abi_version}/openssl.rb"
     inreplace openssl_rb, "require 'openssl.so'", <<~EOS.chomp
-      # Portable OpenSSL uses PORTABLE_RUBY_SSL_CERT_* instead of SSL_CERT_* to avoid
-      # conflicts with other OpenSSL installations. Bridge them here, preferring:
-      # 1. User-provided SSL_CERT_FILE/SSL_CERT_DIR environment variables
-      # 2. Auto-detected system certificate paths
-      # 3. Bundled CA certificate bundle (cert file only)
-      ssl_env = ->(v) { v unless v.to_s.empty? }
-
-      ENV["PORTABLE_RUBY_SSL_CERT_FILE"] =
-        ssl_env[ENV["SSL_CERT_FILE"]] ||
-        ["/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
-         "/etc/ssl/ca-bundle.pem", "/etc/ssl/cert.pem"].find { |f| File.exist?(f) } ||
-        File.expand_path("../../libexec/cert.pem", RbConfig.ruby)
-
-      ENV["PORTABLE_RUBY_SSL_CERT_DIR"] =
-        ssl_env[ENV["SSL_CERT_DIR"]] ||
-        ["/etc/ssl/certs", "/etc/pki/tls/certs"].find { |d| File.directory?(d) }
+      # Fall back to bundled CA certificates if SSL_CERT_FILE is not set.
+      # System cert auto-detection is handled at the C level in portable-openssl;
+      # this only activates for minimal environments with no system certs at all.
+      unless ENV["SSL_CERT_FILE"]
+        bundled = File.expand_path("../../libexec/cert.pem", RbConfig.ruby)
+        ENV["SSL_CERT_FILE"] = bundled if File.exist?(bundled)
+      end
       \\0
     EOS
   end
