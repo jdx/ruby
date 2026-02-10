@@ -229,7 +229,7 @@ class JdxRuby32 < Formula
       # Fall back to bundled CA certificates only when no system certs exist.
       # System cert auto-detection is handled at the C level in portable-openssl;
       # this only activates for minimal environments (e.g. containers without ca-certificates).
-      unless ENV["SSL_CERT_FILE"]
+      if ENV["SSL_CERT_FILE"].to_s.empty?
         system_certs = %w[
           /etc/ssl/certs/ca-certificates.crt
           /etc/pki/tls/certs/ca-bundle.crt
