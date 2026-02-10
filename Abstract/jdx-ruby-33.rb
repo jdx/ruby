@@ -211,12 +211,20 @@ class JdxRuby33 < Formula
     cp openssl.libexec/"etc/openssl/cert.pem", libexec/"cert.pem"
     openssl_rb = lib/"ruby/#{abi_version}/openssl.rb"
     inreplace openssl_rb, "require 'openssl.so'", <<~EOS.chomp
-      # Fall back to bundled CA certificates if SSL_CERT_FILE is not set.
+      # Fall back to bundled CA certificates only when no system certs exist.
       # System cert auto-detection is handled at the C level in portable-openssl;
-      # this only activates for minimal environments with no system certs at all.
+      # this only activates for minimal environments (e.g. containers without ca-certificates).
       unless ENV["SSL_CERT_FILE"]
-        bundled = File.expand_path("../../libexec/cert.pem", RbConfig.ruby)
-        ENV["SSL_CERT_FILE"] = bundled if File.exist?(bundled)
+        system_certs = %w[
+          /etc/ssl/certs/ca-certificates.crt
+          /etc/pki/tls/certs/ca-bundle.crt
+          /etc/ssl/ca-bundle.pem
+          /etc/ssl/cert.pem
+        ]
+        unless system_certs.any? { |f| File.exist?(f) }
+          bundled = File.expand_path("../../libexec/cert.pem", RbConfig.ruby)
+          ENV["SSL_CERT_FILE"] = bundled if File.exist?(bundled)
+        end
       end
       \\0
     EOS
