@@ -223,8 +223,22 @@ class JdxRuby32 < Formula
     cp openssl.libexec/"etc/openssl/cert.pem", libexec/"cert.pem"
     openssl_rb = lib/"ruby/#{abi_version}/openssl.rb"
     inreplace openssl_rb, "require 'openssl.so'", <<~EOS.chomp
-      ENV["PORTABLE_RUBY_SSL_CERT_FILE"] = ENV["SSL_CERT_FILE"] || File.expand_path("../../libexec/cert.pem", RbConfig.ruby)
-      ENV["PORTABLE_RUBY_SSL_CERT_DIR"] = ENV["SSL_CERT_DIR"] unless ENV["SSL_CERT_DIR"].to_s.empty?
+      # Portable OpenSSL uses PORTABLE_RUBY_SSL_CERT_* instead of SSL_CERT_* to avoid
+      # conflicts with other OpenSSL installations. Bridge them here, preferring:
+      # 1. User-provided SSL_CERT_FILE/SSL_CERT_DIR environment variables
+      # 2. Auto-detected system certificate paths
+      # 3. Bundled CA certificate bundle (cert file only)
+      ssl_env = ->(v) { v unless v.to_s.empty? }
+
+      ENV["PORTABLE_RUBY_SSL_CERT_FILE"] =
+        ssl_env[ENV["SSL_CERT_FILE"]] ||
+        ["/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
+         "/etc/ssl/ca-bundle.pem", "/etc/ssl/cert.pem"].find { |f| File.exist?(f) } ||
+        File.expand_path("../../libexec/cert.pem", RbConfig.ruby)
+
+      ENV["PORTABLE_RUBY_SSL_CERT_DIR"] =
+        ssl_env[ENV["SSL_CERT_DIR"]] ||
+        ["/etc/ssl/certs", "/etc/pki/tls/certs"].find { |d| File.directory?(d) }
       \\0
     EOS
   end
