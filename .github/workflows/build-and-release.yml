@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Ruby version to release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  HOMEBREW_DEVELOPER: 1
+  HOMEBREW_NO_AUTO_UPDATE: 1
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            platform: macos
+          - runner: ubuntu-22.04
+            platform: x86_64_linux
+          - runner: ubuntu-22.04-arm
+            platform: arm64_linux
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            echo "/home/linuxbrew/.linuxbrew/bin" >> $GITHUB_PATH
+            echo "/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          fi
+
+      - name: Tap repo
+        run: bin/setup
+
+      - name: Fix Bundler permissions (ARM Linux)
+        if: runner.os == 'Linux' && runner.arch == 'ARM64'
+        run: chmod -R go-w /home/linuxbrew/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle || true
+
+      - name: Set baseruby on macOS
+        if: runner.os == 'macOS'
+        run: echo "HOMEBREW_BASERUBY=$(command -v ruby)" >> $GITHUB_ENV
+
+      - name: Build portable OpenSSL 1.1
+        run: brew jdx-package --verbose portable-openssl@1.1
+
+      - name: Build Ruby
+        run: |
+          mkdir -p rubies
+          cd rubies
+          brew jdx-package --verbose jdx-ruby@${{ inputs.version }}
+          tarball="$(ls *.tar.gz | head -n1)"
+          mv "$tarball" "ruby-${{ inputs.version }}.${{ matrix.platform }}.tar.gz"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruby-${{ inputs.version }}-${{ matrix.platform }}
+          path: rubies/ruby-${{ inputs.version }}.${{ matrix.platform }}.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ruby-${{ inputs.version }}-*
+          path: rubies
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "${{ inputs.version }}" --yes 2>/dev/null || true
+          git push --delete origin "${{ inputs.version }}" 2>/dev/null || true
+          gh release create "${{ inputs.version }}" rubies/*.tar.gz --title "${{ inputs.version }}"
