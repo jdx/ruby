@@ -30,10 +30,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Get latest patch versions for each minor series we support
-          for minor in 3.2 3.3 3.4; do
+          for minor in 3.2 3.3 3.4 4.0; do
             # Get latest release for this minor version from ruby/ruby
             latest=$(gh release list --repo ruby/ruby --limit 100 --json tagName --jq '.[].tagName' | \
-              grep "^v${minor//./_}_" | \
+              grep "^v${minor//./[._]}[._]" | \
               sed 's/^v//; s/_/./g' | \
               grep -E "^${minor}\.[0-9]+$" | \
               sort -V | tail -1)
