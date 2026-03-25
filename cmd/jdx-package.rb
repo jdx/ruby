@@ -41,7 +41,8 @@ module Homebrew
         end
 
         args.named.each do |name|
-          flags << "--HEAD" unless name.include?("@")
+          name_flags = flags.dup
+          name_flags << "--HEAD" unless name.include?("@")
 
           begin
             # Install build deps (but not static-linked deps) from bottles, to save compilation time
@@ -49,6 +50,7 @@ module Homebrew
             deps = Dependency.expand(Formula[name], cache_key: "jdx-package-#{name}") do |_dependent, dep|
               Dependency.prune if dep.test? || dep.optional?
               Dependency.prune if dep.name == "rustup" && args.without_yjit?
+              Dependency.prune if !args.without_yjit? && (dep.name.start_with?("glibc@") || dep.name == "linux-headers@4.4")
 
               next unless bottled_dep_allowlist.match?(dep.name)
 
@@ -64,7 +66,7 @@ module Homebrew
             # Build bottles for all other dependencies.
             safe_system HOMEBREW_BREW_FILE, "install", "--build-bottle", *verbose, *deps if deps.any?
             # Build the main bottle
-            safe_system HOMEBREW_BREW_FILE, "install", "--build-bottle", *flags, *verbose, name
+            safe_system HOMEBREW_BREW_FILE, "install", "--build-bottle", *name_flags, *verbose, name
             # Uninstall the dependencies we linked in
             unless args.no_uninstall_deps? || deps.empty?
               safe_system HOMEBREW_BREW_FILE, "uninstall", "--force", "--ignore-dependencies", *verbose, *deps
