@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Configure Git
         run: |
