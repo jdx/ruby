@@ -48,7 +48,7 @@ jobs:
             # Get latest release for this minor version from ruby/ruby
             # Match both old format (v3_2_0) and new format (v4.0.0)
             underscore_prefix="v${minor//./_}_"
-            dot_prefix="v${minor}."
+            dot_prefix="v${minor//./\\.}\\."
             latest=$(echo "$all_tags" | \
               grep -E "^(${underscore_prefix}|${dot_prefix})" | \
               grep -viE '(preview|rc)' | \
@@ -134,7 +134,7 @@ jobs:
             # Skip if this minor version already has a stable release
             # Check for tags like v3_5_0, v3_5_1, v4.0.0, etc. (stable = no preview/rc suffix)
             underscore_pattern="^v${minor//./_}_[0-9]+$"
-            dot_pattern="^v${minor}\.[0-9]+$"
+            dot_pattern="^v${minor//./\\.}\.[0-9]+$"
             if echo "$all_releases" | grep -qE "(${underscore_pattern}|${dot_pattern})"; then
               echo "Skipping $version - stable releases exist for $minor series"
               continue
