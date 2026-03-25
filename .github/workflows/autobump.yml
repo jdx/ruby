@@ -29,11 +29,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # Get latest patch versions for each minor series we support
-          for minor in 3.2 3.3 3.4; do
+          # Discover all minor series with stable releases from ruby/ruby
+          all_tags=$(gh release list --repo ruby/ruby --limit 200 --json tagName --jq '.[].tagName')
+
+          # Extract unique minor versions (e.g., 3.2, 3.3, 3.4, 4.0) from stable release tags
+          # Handles both old format (v3_2_0) and new format (v4.0.0)
+          minor_versions=$(echo "$all_tags" | grep -v -iE '(preview|rc)' | \
+            sed 's/^v//; s/_/./g' | \
+            grep -oE '^[0-9]+\.[0-9]+' | \
+            sort -V -u)
+
+          # Only process 3.2+ (older versions aren't supported)
+          minor_versions=$(echo "$minor_versions" | awk -F. '$1 > 3 || ($1 == 3 && $2 >= 2)')
+
+          echo "Discovered minor series: $(echo $minor_versions | tr '\n' ' ')"
+
+          for minor in $minor_versions; do
             # Get latest release for this minor version from ruby/ruby
-            latest=$(gh release list --repo ruby/ruby --limit 100 --json tagName --jq '.[].tagName' | \
-              grep "^v${minor//./_}_" | \
+            # Match both old format (v3_2_0) and new format (v4.0.0)
+            underscore_prefix="v${minor//./_}_"
+            dot_prefix="v${minor//./\\.}\\."
+            latest=$(echo "$all_tags" | \
+              grep -E "^(${underscore_prefix}|${dot_prefix})" | \
+              grep -viE '(preview|rc)' | \
               sed 's/^v//; s/_/./g' | \
               grep -E "^${minor}\.[0-9]+$" | \
               sort -V | tail -1)
@@ -66,9 +84,18 @@ jobs:
             abstract_num="${minor//./}"
             class_version="${latest//./}"
 
+            # Use version-specific abstract class if it exists, otherwise use base
+            if [[ -f "Abstract/jdx-ruby-${abstract_num}.rb" ]]; then
+              abstract_file="jdx-ruby-${abstract_num}"
+              abstract_class="JdxRuby${abstract_num}"
+            else
+              abstract_file="jdx-ruby"
+              abstract_class="JdxRuby"
+            fi
+
             echo "Creating formula for Ruby $latest"
-            printf 'require File.expand_path("../Abstract/jdx-ruby-%s", __dir__)\n\nclass JdxRubyAT%s < JdxRuby%s\n  url "%s"\n  sha256 "%s"\nend\n' \
-              "$abstract_num" "$class_version" "$abstract_num" "$tarball_url" "$sha256" > "$formula_file"
+            printf 'require File.expand_path("../Abstract/%s", __dir__)\n\nclass JdxRubyAT%s < %s\n  url "%s"\n  sha256 "%s"\nend\n' \
+              "$abstract_file" "$class_version" "$abstract_class" "$tarball_url" "$sha256" > "$formula_file"
 
             git add "$formula_file"
             git commit -m "Add jdx-ruby@${latest}"
@@ -83,7 +110,7 @@ jobs:
           # Only pick up prereleases for minor versions that don't have stable releases yet
 
           # Get all releases once
-          all_releases=$(gh release list --repo ruby/ruby --limit 100 --json tagName --jq '.[].tagName')
+          all_releases=$(gh release list --repo ruby/ruby --limit 200 --json tagName --jq '.[].tagName')
 
           echo "$all_releases" | while read -r tag; do
             # Skip if not a prerelease (must contain preview or rc)
@@ -105,9 +132,10 @@ jobs:
             minor=$(echo "$version" | grep -oE '^[0-9]+\.[0-9]+')
 
             # Skip if this minor version already has a stable release
-            # Check for tags like v3_5_0, v3_5_1, etc. (stable = no preview/rc suffix)
-            minor_pattern="^v${minor//./_}_[0-9]+$"
-            if echo "$all_releases" | grep -qE "$minor_pattern"; then
+            # Check for tags like v3_5_0, v3_5_1, v4.0.0, etc. (stable = no preview/rc suffix)
+            underscore_pattern="^v${minor//./_}_[0-9]+$"
+            dot_pattern="^v${minor//./\\.}\.[0-9]+$"
+            if echo "$all_releases" | grep -qE "(${underscore_pattern}|${dot_pattern})"; then
               echo "Skipping $version - stable releases exist for $minor series"
               continue
             fi
