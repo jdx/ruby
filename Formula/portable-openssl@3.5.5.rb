@@ -97,7 +97,7 @@ class PortableOpensslAT355 < PortableFormula
     inreplace "crypto/x509/x509_def.c", <<~ORIG.chomp, <<~PATCHED.chomp
       const char *X509_get_default_cert_file(void)
       {
-      #if defined (_WIN32)
+      #if defined(_WIN32)
           RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
           return x509_cert_fileptr;
       #else
@@ -107,7 +107,7 @@ class PortableOpensslAT355 < PortableFormula
     ORIG
       const char *X509_get_default_cert_file(void)
       {
-      #if defined (_WIN32)
+      #if defined(_WIN32)
           RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
           return x509_cert_fileptr;
       #else
@@ -133,7 +133,7 @@ class PortableOpensslAT355 < PortableFormula
     inreplace "crypto/x509/x509_def.c", <<~ORIG.chomp, <<~PATCHED.chomp
       const char *X509_get_default_cert_dir(void)
       {
-      #if defined (_WIN32)
+      #if defined(_WIN32)
           RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
           return x509_cert_dirptr;
       #else
@@ -143,7 +143,7 @@ class PortableOpensslAT355 < PortableFormula
     ORIG
       const char *X509_get_default_cert_dir(void)
       {
-      #if defined (_WIN32)
+      #if defined(_WIN32)
           RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
           return x509_cert_dirptr;
       #else
