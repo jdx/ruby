@@ -3,19 +3,25 @@ set -euo pipefail
 
 # One-time script to create -1 revision releases for all existing releases.
 # This avoids rebuilding — it just copies the assets from the floating release.
+# Safe to run multiple times — skips versions that already have a revision release.
 
-releases=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' || true)
+# Only match floating releases (X.Y.Z or X.Y.Z-previewN etc), not existing revision tags (X.Y.Z-1)
+releases=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]|$)' || true)
 
 for version in $releases; do
   revision_tag="${version}-1"
 
-  # Skip if revision already exists
+  # Skip if any revision already exists for this version
   if gh release view "$revision_tag" &>/dev/null; then
-    echo "Skipping $revision_tag (already exists)"
+    echo "Skipping $version (${revision_tag} already exists)"
     continue
   fi
 
   echo "Creating $revision_tag from $version..."
+
+  # Clean up any partial previous attempt (draft release without assets)
+  gh release delete "$revision_tag" --yes 2>/dev/null || true
+  gh api -X DELETE "repos/{owner}/{repo}/git/refs/tags/${revision_tag}" 2>/dev/null || true
 
   # Get the existing release info
   release_info=$(gh release view "$version" --json body,targetCommitish,isPrerelease)
@@ -30,6 +36,7 @@ for version in $releases; do
 
   # Download assets to a temp dir
   tmpdir=$(mktemp -d)
+  trap "rm -rf '$tmpdir'" EXIT
   gh release download "$version" --dir "$tmpdir" --pattern '*.tar.gz' --pattern '*.jsonl'
 
   # Create the revision release
@@ -46,5 +53,6 @@ for version in $releases; do
     "$tmpdir"/*
 
   rm -rf "$tmpdir"
+  trap - EXIT
   echo "Created $revision_tag"
 done
