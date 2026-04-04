@@ -154,12 +154,34 @@ jobs:
   create-release:
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      revision_tag: ${{ steps.revision.outputs.tag }}
     permissions:
       contents: write
     env:
       VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@main
+
+      - name: Determine build revision
+        id: revision
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Find existing revision tags (e.g., 3.4.5-1, 3.4.5-2, ...)
+          # Use git ls-remote to get all tags — not truncated like gh release list
+          last_revision=$(git ls-remote --tags origin "refs/tags/${VERSION}-*" | \
+            sed 's|.*refs/tags/||' | \
+            { grep -E "^${VERSION}-[0-9]+$" || true; } | \
+            sed "s/^${VERSION}-//" | \
+            sort -n | tail -1)
+          if [[ -z "$last_revision" ]]; then
+            revision=1
+          else
+            revision=$((last_revision + 1))
+          fi
+          echo "tag=${VERSION}-${revision}" >> "$GITHUB_OUTPUT"
+          echo "Build revision: ${VERSION}-${revision}"
 
       - name: Get Ruby release info
         id: ruby-release
@@ -192,11 +214,12 @@ jobs:
             echo "has_changelog=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create Release
+      - name: Create releases
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           RUBY_RELEASE_DATE: ${{ steps.ruby-release.outputs.date }}
           HAS_CHANGELOG: ${{ steps.ruby-release.outputs.has_changelog }}
+          REVISION_TAG: ${{ steps.revision.outputs.tag }}
         run: |
           if [[ "${{ inputs.latest }}" == "true" ]]; then
             latest_flag="--latest"
@@ -226,19 +249,34 @@ jobs:
             cat /tmp/ruby_changelog.md >> /tmp/release_notes.md
           fi
 
-          # Delete ALL existing releases matching this version (handles orphaned releases)
+          TARGET="$(git rev-parse --verify HEAD)"
+
+          # Delete ALL existing floating releases matching this version (handles orphaned releases)
           for release_id in $(gh api repos/${{ github.repository }}/releases --paginate --jq ".[] | select(.name == \"${VERSION}\" or .tag_name == \"${VERSION}\") | .id"); do
             echo "Deleting release $release_id"
             gh api -X DELETE "repos/${{ github.repository }}/releases/$release_id" || true
           done
           # Also delete the tag if it exists
           gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/${VERSION}" 2>/dev/null || true
+
+          # Create floating release (e.g., 3.4.5) — always updated to latest build
           gh release create "${VERSION}" \
             --draft \
             --notes-file /tmp/release_notes.md \
-            --target "$(git rev-parse --verify HEAD)" \
+            --target "$TARGET" \
             --title "${VERSION}" \
             $latest_flag \
+            $prerelease_flag
+
+          # Create pinned revision release (e.g., 3.4.5-1) — immutable snapshot
+          echo "" >> /tmp/release_notes.md
+          echo "**Build revision:** ${REVISION_TAG}" >> /tmp/release_notes.md
+          gh release create "${REVISION_TAG}" \
+            --draft \
+            --notes-file /tmp/release_notes.md \
+            --target "$TARGET" \
+            --title "${REVISION_TAG}" \
+            --latest=false \
             $prerelease_flag
 
   provenance:
@@ -274,7 +312,10 @@ jobs:
         working-directory: rubies
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
-        run: gh release upload "${VERSION}" *.tar.gz --clobber --repo "${{ github.repository }}"
+          REVISION_TAG: ${{ needs.create-release.outputs.revision_tag }}
+        run: |
+          gh release upload "${VERSION}" *.tar.gz --clobber --repo "${{ github.repository }}"
+          gh release upload "${REVISION_TAG}" *.tar.gz --clobber --repo "${{ github.repository }}"
 
       - name: Download SLSA provenance
         uses: actions/download-artifact@v4
@@ -285,7 +326,10 @@ jobs:
       - name: Upload SLSA provenance to release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
-        run: gh release upload "${VERSION}" provenance/*.intoto.jsonl --clobber --repo "${{ github.repository }}"
+          REVISION_TAG: ${{ needs.create-release.outputs.revision_tag }}
+        run: |
+          gh release upload "${VERSION}" provenance/*.intoto.jsonl --clobber --repo "${{ github.repository }}"
+          gh release upload "${REVISION_TAG}" provenance/*.intoto.jsonl --clobber --repo "${{ github.repository }}"
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
@@ -293,7 +337,7 @@ jobs:
           subject-path: 'rubies/*.tar.gz'
 
   publish-release:
-    needs: [provenance, upload-assets]
+    needs: [create-release, provenance, upload-assets]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -303,6 +347,7 @@ jobs:
       - name: Publish release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          REVISION_TAG: ${{ needs.create-release.outputs.revision_tag }}
         run: |
           # Mark as prerelease if version contains preview or rc
           if echo "${VERSION}" | grep -qiE '(preview|rc)'; then
@@ -311,11 +356,15 @@ jobs:
             prerelease_flag=""
           fi
 
+          # Publish floating release
           if [[ "${{ inputs.latest }}" == "true" ]]; then
             gh release edit "${VERSION}" --draft=false --latest $prerelease_flag --repo "${{ github.repository }}"
           else
             gh release edit "${VERSION}" --draft=false --latest=false $prerelease_flag --repo "${{ github.repository }}"
           fi
+
+          # Publish pinned revision release
+          gh release edit "${REVISION_TAG}" --draft=false --latest=false $prerelease_flag --repo "${{ github.repository }}"
 
   notify:
     needs: [build, combine-hashes, create-release, provenance, upload-assets, publish-release]
@@ -327,9 +376,10 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           VERSION: ${{ inputs.version }}
         run: |
+          REVISION_TAG="${{ needs.create-release.outputs.revision_tag }}"
           if [[ "${{ needs.publish-release.result }}" == "success" ]]; then
-            subject="✅ Ruby ${VERSION} released successfully"
-            body="<p>Ruby ${VERSION} has been released successfully.</p><p><a href='https://github.com/${{ github.repository }}/releases/tag/${VERSION}'>View Release</a></p>"
+            subject="✅ Ruby ${VERSION} released successfully (${REVISION_TAG})"
+            body="<p>Ruby ${VERSION} has been released successfully (build ${REVISION_TAG}).</p><p><a href='https://github.com/${{ github.repository }}/releases/tag/${VERSION}'>View Release</a> | <a href='https://github.com/${{ github.repository }}/releases/tag/${REVISION_TAG}'>View Revision</a></p>"
           else
             subject="❌ Ruby ${VERSION} release failed"
             body="<p>Ruby ${VERSION} release failed.</p><p><a href='https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View Workflow Run</a></p>"
