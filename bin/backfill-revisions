@@ -39,6 +39,13 @@ for version in $releases; do
   trap "rm -rf '$tmpdir'" EXIT
   gh release download "$version" --dir "$tmpdir" --pattern '*.tar.gz' --pattern '*.jsonl'
 
+  if ! ls "$tmpdir"/*.tar.gz &>/dev/null; then
+    echo "Skipping $version (no assets found)"
+    rm -rf "$tmpdir"
+    trap - EXIT
+    continue
+  fi
+
   # Create the revision release
   body_with_revision="${body}
 
