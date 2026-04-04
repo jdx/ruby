@@ -172,7 +172,7 @@ jobs:
           # Use git ls-remote to get all tags — not truncated like gh release list
           last_revision=$(git ls-remote --tags origin "refs/tags/${VERSION}-*" | \
             sed 's|.*refs/tags/||' | \
-            grep -E "^${VERSION}-[0-9]+$" | \
+            { grep -E "^${VERSION}-[0-9]+$" || true; } | \
             sed "s/^${VERSION}-//" | \
             sort -n | tail -1)
           if [[ -z "$last_revision" ]]; then
