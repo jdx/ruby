@@ -1,0 +1,50 @@
+#!/bin/bash
+set -euo pipefail
+
+# One-time script to create -1 revision releases for all existing releases.
+# This avoids rebuilding — it just copies the assets from the floating release.
+
+releases=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' || true)
+
+for version in $releases; do
+  revision_tag="${version}-1"
+
+  # Skip if revision already exists
+  if gh release view "$revision_tag" &>/dev/null; then
+    echo "Skipping $revision_tag (already exists)"
+    continue
+  fi
+
+  echo "Creating $revision_tag from $version..."
+
+  # Get the existing release info
+  release_info=$(gh release view "$version" --json body,targetCommitish,isPrerelease)
+  body=$(echo "$release_info" | jq -r '.body')
+  target=$(echo "$release_info" | jq -r '.targetCommitish')
+  is_prerelease=$(echo "$release_info" | jq -r '.isPrerelease')
+
+  prerelease_flag=""
+  if [[ "$is_prerelease" == "true" ]]; then
+    prerelease_flag="--prerelease"
+  fi
+
+  # Download assets to a temp dir
+  tmpdir=$(mktemp -d)
+  gh release download "$version" --dir "$tmpdir" --pattern '*.tar.gz' --pattern '*.jsonl'
+
+  # Create the revision release
+  body_with_revision="${body}
+
+**Build revision:** ${revision_tag}"
+
+  gh release create "$revision_tag" \
+    --title "$revision_tag" \
+    --notes "$body_with_revision" \
+    --target "$target" \
+    --latest=false \
+    $prerelease_flag \
+    "$tmpdir"/*
+
+  rm -rf "$tmpdir"
+  echo "Created $revision_tag"
+done
