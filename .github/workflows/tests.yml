@@ -29,13 +29,14 @@ jobs:
       formula: jdx-ruby@3.4.1
 
   # This job is used as a required status check
-  conclusion:
-    needs: build
+  final:
+    needs:
+      - syntax
+      - build
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && !cancelled()
+    timeout-minutes: 1
+    if: always()
     steps:
-      - name: Result
-        env:
-          RESULT: ${{ needs.build.result }}
-        run: |
-          [[ "${RESULT}" == success ]]
+      - name: Check CI job results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
