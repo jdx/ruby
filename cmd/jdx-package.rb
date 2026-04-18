@@ -48,13 +48,15 @@ module Homebrew
             # Install build deps (but not static-linked deps) from bottles, to save compilation time
             bottled_dep_allowlist = /\A(?:glibc@|linux-headers@|ruby@|rustup|autoconf|pkgconf|bison)/
             deps = Dependency.expand(Formula[name], cache_key: "jdx-package-#{name}") do |_dependent, dep|
-              Dependency.prune if dep.test? || dep.optional?
-              Dependency.prune if dep.name == "rustup" && args.without_yjit?
-              Dependency.prune if !args.without_yjit? && (dep.name.start_with?("glibc@") || dep.name == "linux-headers@4.4")
+              next Dependable::PRUNE if dep.test? || dep.optional?
+              next Dependable::PRUNE if dep.name == "rustup" && args.without_yjit?
+              if !args.without_yjit? && (dep.name.start_with?("glibc@") || dep.name == "linux-headers@4.4")
+                next Dependable::PRUNE
+              end
 
               next unless bottled_dep_allowlist.match?(dep.name)
 
-              Dependency.keep_but_prune_recursive_deps
+              Dependable::KEEP_BUT_PRUNE_RECURSIVE_DEPS
             end.map(&:name)
 
             bottled_deps, deps = deps.partition { |dep| bottled_dep_allowlist.match?(dep) }
