@@ -1,4 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>jdx/renovate-config", "helpers:pinGitHubActionDigests"]
+  "extends": ["github>jdx/renovate-config", "helpers:pinGitHubActionDigests"],
+  "packageRules": [
+    {
+      "description": "Keep SLSA reusable workflow on tag refs",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["slsa-framework/slsa-github-generator"],
+      "pinDigests": false
+    }
+  ]
 }
