@@ -1,6 +1,12 @@
 name: Release New Versions
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - Formula/jdx-ruby@*.rb
+      - .github/workflows/release-new.yml
   workflow_dispatch:
     inputs:
       replace_all:
