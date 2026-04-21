@@ -388,7 +388,7 @@ jobs:
             -H "Authorization: Bearer ${RESEND_API_KEY}" \
             -H 'Content-Type: application/json' \
             -d "{
-              \"from\": \"Ruby Releases <ruby@mise.jdx.dev>\",
+              \"from\": \"Ruby Releases <ruby@en.dev>\",
               \"to\": [\"${{ secrets.NOTIFY_EMAIL }}\"],
               \"subject\": \"${subject}\",
               \"html\": \"${body}\"
