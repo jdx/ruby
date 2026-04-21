@@ -285,9 +285,10 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    # v2.1.0 caused `provenance / final` to fail when `upload-assets: false`.
-    # Keep this pinned until that regression is understood or fixed upstream.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    # Keep this pinned to a release tag, not a commit SHA.
+    # The SLSA workflow downloads its builder from a tag-based release when
+    # `compile-generator: false`, and raw SHA refs break that resolution.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: "${{ needs.combine-hashes.outputs.hashes }}"
       upload-assets: false
