@@ -94,8 +94,7 @@ class JdxRuby33 < Formula
       --enable-load-relative
       --with-out-ext=win32,win32ole
       --without-gmp
-      --disable-install-doc
-      --disable-install-rdoc
+      --with-rdoc=ri
       --disable-dependency-tracking
     ]
 
@@ -257,6 +256,8 @@ class JdxRuby33 < Formula
     EOS
     system testpath/"bin/gem", "environment"
     system testpath/"bin/bundle", "init"
+    assert_match "Object",
+      shell_output("#{testpath}/bin/ri Object")
     # install gem with native components
     system testpath/"bin/gem", "install", "byebug"
     assert_match "byebug",
