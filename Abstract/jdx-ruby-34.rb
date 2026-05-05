@@ -90,6 +90,8 @@ class JdxRuby34 < Formula
     libyaml = Formula[dep_names.find{|d| d.start_with?("portable-libyaml") }]
     openssl = Formula[dep_names.find{|d| d.start_with?("portable-openssl") }]
 
+    # Ruby's configure supports --with-rdoc=ri,html; request only RI data to
+    # keep portable packages smaller than a full HTML documentation install.
     args = %W[
       --prefix=#{prefix}
       --enable-load-relative
@@ -260,7 +262,7 @@ class JdxRuby34 < Formula
     system testpath/"bin/gem", "environment"
     system testpath/"bin/bundle", "init"
     assert_match "Object",
-      shell_output("#{testpath}/bin/ri Object")
+      shell_output("#{ruby} #{testpath}/bin/ri Object")
     # install gem with native components
     system testpath/"bin/gem", "install", "byebug"
     assert_match "byebug",
