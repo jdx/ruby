@@ -207,11 +207,26 @@ class JdxRuby < Formula
       # Fall back to bundled CA certificates only when no system certs exist.
       # System cert auto-detection is handled at the C level in portable-openssl;
       # this only activates for minimal environments (e.g. containers without ca-certificates).
-      if ENV["SSL_CERT_FILE"].to_s.empty?
+      if ENV["SSL_CERT_FILE"].to_s.empty? && ENV["SSL_CERT_DIR"].to_s.empty?
+        jdx_cert_file = ENV["JDX_RUBY_SSL_CERT_FILE"].to_s
+        if !jdx_cert_file.empty? && File.exist?(jdx_cert_file)
+          ENV["SSL_CERT_FILE"] = jdx_cert_file
+        else
+          jdx_cert_dir = ENV["JDX_RUBY_SSL_CERT_DIR"].to_s
+          ENV["SSL_CERT_DIR"] = jdx_cert_dir if !jdx_cert_dir.empty? && Dir.exist?(jdx_cert_dir)
+        end
+      end
+      if ENV["SSL_CERT_FILE"].to_s.empty? && ENV["SSL_CERT_DIR"].to_s.empty?
         system_certs = %w[
           /etc/ssl/certs/ca-certificates.crt
           /etc/pki/tls/certs/ca-bundle.crt
           /etc/ssl/ca-bundle.pem
+          /opt/homebrew/etc/openssl@3/cert.pem
+          /usr/local/etc/openssl@3/cert.pem
+          /opt/homebrew/etc/ca-certificates/cert.pem
+          /usr/local/etc/ca-certificates/cert.pem
+          /home/linuxbrew/.linuxbrew/etc/openssl@3/cert.pem
+          /home/linuxbrew/.linuxbrew/etc/ca-certificates/cert.pem
           /etc/ssl/cert.pem
         ]
         unless system_certs.any? { |f| File.exist?(f) }

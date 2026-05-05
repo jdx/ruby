@@ -111,14 +111,21 @@ class PortableOpensslAT355 < PortableFormula
           RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
           return x509_cert_fileptr;
       #else
-          if (access(X509_CERT_FILE, R_OK) == 0)
-              return X509_CERT_FILE;
+          const char *jdx_cert_file = ossl_safe_getenv("JDX_RUBY_SSL_CERT_FILE");
+          if (jdx_cert_file != NULL && jdx_cert_file[0] != '\0' && access(jdx_cert_file, R_OK) == 0)
+              return jdx_cert_file;
           /* Auto-detect system certificate bundles */
           static const char *system_cert_files[] = {
               "/etc/ssl/certs/ca-certificates.crt", /* Debian/Ubuntu */
               "/etc/pki/tls/certs/ca-bundle.crt",   /* RHEL/CentOS/Fedora */
               "/etc/ssl/ca-bundle.pem",              /* SUSE */
-              "/etc/ssl/cert.pem",                   /* macOS/Alpine */
+              "/opt/homebrew/etc/openssl@3/cert.pem",        /* Homebrew OpenSSL on Apple Silicon */
+              "/usr/local/etc/openssl@3/cert.pem",           /* Homebrew OpenSSL on Intel macOS */
+              "/opt/homebrew/etc/ca-certificates/cert.pem", /* Homebrew on Apple Silicon */
+              "/usr/local/etc/ca-certificates/cert.pem",    /* Homebrew on Intel macOS */
+              "/home/linuxbrew/.linuxbrew/etc/openssl@3/cert.pem", /* Linuxbrew OpenSSL */
+              "/home/linuxbrew/.linuxbrew/etc/ca-certificates/cert.pem", /* Linuxbrew */
+              "/etc/ssl/cert.pem",                         /* macOS/Alpine */
               NULL
           };
           for (int i = 0; system_cert_files[i] != NULL; i++) {
@@ -147,12 +154,16 @@ class PortableOpensslAT355 < PortableFormula
           RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
           return x509_cert_dirptr;
       #else
-          if (access(X509_CERT_DIR, R_OK) == 0)
-              return X509_CERT_DIR;
+          const char *jdx_cert_dir = ossl_safe_getenv("JDX_RUBY_SSL_CERT_DIR");
+          if (jdx_cert_dir != NULL && jdx_cert_dir[0] != '\0' && access(jdx_cert_dir, R_OK) == 0)
+              return jdx_cert_dir;
           /* Auto-detect system certificate directories */
           static const char *system_cert_dirs[] = {
               "/etc/ssl/certs",          /* Debian/Ubuntu/Alpine/SUSE */
               "/etc/pki/tls/certs",      /* RHEL/CentOS/Fedora */
+              "/opt/homebrew/etc/openssl@3/certs", /* Homebrew OpenSSL on Apple Silicon */
+              "/usr/local/etc/openssl@3/certs", /* Homebrew OpenSSL on Intel macOS */
+              "/home/linuxbrew/.linuxbrew/etc/openssl@3/certs", /* Linuxbrew OpenSSL */
               NULL
           };
           for (int i = 0; system_cert_dirs[i] != NULL; i++) {
