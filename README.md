@@ -6,6 +6,18 @@ Tools to build versions of Ruby that can be installed and run from anywhere on t
 
 These are general-purpose portable Ruby binaries. Download the appropriate tarball for your platform from the [releases page](https://github.com/jdx/ruby/releases) and extract it to any location.
 
+## SSL certificates
+
+These Rubies use the first available certificate source in this order:
+
+| Priority | Source | Paths |
+| --- | --- | --- |
+| 1 | Standard OpenSSL overrides | `SSL_CERT_FILE`, `SSL_CERT_DIR` |
+| 2 | Portable Ruby overrides | `JDX_RUBY_SSL_CERT_FILE`, `JDX_RUBY_SSL_CERT_DIR` |
+| 3 | Homebrew and Linuxbrew bundles | `/opt/homebrew/etc/openssl@3/cert.pem`, `/usr/local/etc/openssl@3/cert.pem`, `/opt/homebrew/etc/ca-certificates/cert.pem`, `/usr/local/etc/ca-certificates/cert.pem`, `/home/linuxbrew/.linuxbrew/etc/openssl@3/cert.pem`, `/home/linuxbrew/.linuxbrew/etc/ca-certificates/cert.pem` |
+| 4 | System bundles | `/etc/ssl/certs/ca-certificates.crt`, `/etc/pki/tls/certs/ca-bundle.crt`, `/etc/ssl/ca-bundle.pem`, `/etc/ssl/cert.pem` |
+| 5 | Bundled CA bundle | Last-resort fallback included with the portable build. |
+
 ## Local development
 
 - Run `bin/setup` to tap your checkout of this repo as `jdx/ruby`.
