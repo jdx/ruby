@@ -274,8 +274,8 @@ class JdxRuby32 < Formula
     EOS
     system testpath/"bin/gem", "environment"
     system testpath/"bin/bundle", "init"
-    assert_match "Object",
-      shell_output("#{ruby} #{testpath}/bin/ri Object")
+    assert_match "# Object < BasicObject",
+      shell_output("#{ruby} #{testpath}/bin/ri -T -f markdown Object")
     # install gem with native components
     system testpath/"bin/gem", "install", "byebug"
     assert_match "byebug",
