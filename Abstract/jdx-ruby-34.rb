@@ -205,6 +205,7 @@ class JdxRuby34 < Formula
     portable_deps = [libyaml, openssl]
     portable_deps += [libffi, zlib, libxcrypt] if OS.linux?
     copy_portable_deps_for_native_gems(portable_deps)
+    patch_rbconfig_for_portable_native_gems(abi_version, abi_arch)
 
     # Bundle CA certificates for environments without system certs (e.g. minimal containers).
     # portable-openssl auto-detects system cert paths at the C level, but if none exist,
@@ -250,8 +251,6 @@ class JdxRuby34 < Formula
   def test
     cp_r Dir["#{prefix}/*"], testpath
     ENV["PATH"] = "/usr/bin:/bin"
-    # Set PKG_CONFIG_PATH so gem install can find our bundled pkg-config files
-    ENV["PKG_CONFIG_PATH"] = "#{testpath}/lib/pkgconfig"
     ruby = (testpath/"bin/ruby").realpath
     unless version.to_s =~ /head/i
       assert_equal version.to_s.split("-").first, shell_output("#{ruby} -e 'puts RUBY_VERSION'").chomp
