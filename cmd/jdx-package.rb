@@ -45,8 +45,9 @@ module Homebrew
           name_flags << "--HEAD" unless name.include?("@")
 
           begin
-            # Install build deps (but not static-linked deps) from bottles, to save compilation time
-            bottled_dep_allowlist = /\A(?:glibc@|linux-headers@|ruby@|rustup|autoconf|pkgconf|bison)/
+            # Install build deps (but not static-linked deps) from bottles, to save compilation time.
+            # Avoid source-building Linux helper formulae that do not affect portable Ruby linkage.
+            bottled_dep_allowlist = /\A(?:glibc@|linux-headers@|ruby@|python@|rustup|autoconf|pkgconf|bison|bzip2|unzip)/
             deps = Dependency.expand(Formula[name], cache_key: "jdx-package-#{name}") do |_dependent, dep|
               next Dependable::PRUNE if dep.test? || dep.optional?
               next Dependable::PRUNE if dep.name == "rustup" && args.without_yjit?
