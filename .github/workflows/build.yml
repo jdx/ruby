@@ -79,21 +79,6 @@ jobs:
 
       - name: Build jdx Ruby
         run: |
-          dump_homebrew_logs() {
-            log_root="${HOME}/Library/Logs/Homebrew"
-            if [[ ! -d "$log_root" ]]; then
-              log_root="${HOME}/.cache/Homebrew/Logs"
-            fi
-            if [[ -d "$log_root" ]]; then
-              find "$log_root" -maxdepth 8 -type f -print -exec sh -c '
-                for log_file do
-                  printf "\n==> %s <==\n" "$log_file"
-                  tail -n 120 "$log_file"
-                done
-              ' sh {} +
-            fi
-          }
-
           if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
             export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
           fi
@@ -103,10 +88,7 @@ jobs:
           fi
           mkdir -p rubies/
           cd rubies
-          brew jdx-package --verbose $YJIT_FLAG ${{ inputs.formula }} || {
-            dump_homebrew_logs
-            exit 1
-          }
+          brew jdx-package --verbose $YJIT_FLAG ${{ inputs.formula }}
 
       - name: Upload jdx Ruby
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -45,8 +45,27 @@ module PortableFormulaMixin
   end
 
   def test
-    refute_match(/Homebrew libraries/,
-                 shell_output("#{HOMEBREW_BREW_FILE} linkage #{full_name}"))
+    linkage_output = shell_output("#{HOMEBREW_BREW_FILE} linkage #{full_name}")
+    if OS.linux?
+      homebrew_libraries = []
+      in_homebrew_libraries = false
+      linkage_output.each_line do |line|
+        if line.chomp == "Homebrew libraries:"
+          in_homebrew_libraries = true
+          homebrew_libraries.clear
+          next
+        end
+        next unless in_homebrew_libraries
+        break unless line.start_with?("  ")
+
+        homebrew_libraries << line
+      end
+
+      unexpected_libraries = homebrew_libraries.reject { |line| line.match?(/\((?:gcc|glibc)\)\s*\z/) }
+      assert_empty unexpected_libraries, "Unexpected Homebrew linkage:\n#{unexpected_libraries.join}"
+    else
+      refute_match(/Homebrew libraries/, linkage_output)
+    end
 
     super
   end
