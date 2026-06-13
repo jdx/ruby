@@ -125,6 +125,11 @@ module PortableFormulaMixin
       RUBY
     end
   end
+
+  def install_default_native_gem(ruby, gem_name)
+    version = shell_output("#{ruby} -r#{gem_name} -e 'puts Gem.loaded_specs.fetch(#{gem_name.dump}).version'").chomp
+    system Pathname(ruby).dirname/"gem", "install", gem_name, "--version", version, "--force"
+  end
 end
 
 class PortableFormula < Formula
