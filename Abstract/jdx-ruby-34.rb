@@ -196,6 +196,11 @@ class JdxRuby34 < Formula
         s.gsub! ENV.cc, "cc"
         # Change e.g. `CONFIG["AR"] = "gcc-ar-11"` to `CONFIG["AR"] = "ar"`
         s.gsub!(/(CONFIG\[".+"\] = )"gcc-(.*)-\d+"/, '\\1"\\2"')
+        s.gsub!(%r{ ?-I/home/linuxbrew/\.linuxbrew/opt/(?:glibc@[^ /]+|linux-headers@[^ /]+)/include}, "")
+        s.gsub!(%r{ ?-L/home/linuxbrew/\.linuxbrew/opt/glibc@[^ /]+/lib}, "")
+        s.gsub!(%r{ ?-B/home/linuxbrew/\.linuxbrew/opt/glibc@[^ /]+/lib}, "")
+        s.gsub!(%r{ ?-Wl,-rpath-link=/home/linuxbrew/\.linuxbrew/opt/glibc@[^ /]+/lib}, "")
+        s.gsub!(" -nostdinc", "")
         # C++ compiler might have been disabled because we break it with glibc@* builds
         s.sub!(/(CONFIG\["CXX"\] = )"false"/, '\\1"c++"') if build.without? "yjit"
       end
@@ -286,7 +291,7 @@ class JdxRuby34 < Formula
     # These were failing before we included headers in the tarball
     # See: https://github.com/jdx/mise/discussions/7268#discussioncomment-15298593
     install_default_native_gem ruby, "openssl" if OS.mac?  # requires openssl headers
-    install_default_native_gem ruby, "psych" if OS.mac?     # requires libyaml headers
+    install_default_native_gem ruby, "psych"    # requires libyaml headers
 
     # Test that gem upgrades work for bundled gems with executables
     # This was failing due to shell polyglot format not being detected by RubyGems
