@@ -184,11 +184,14 @@ class JdxRuby < Formula
     if OS.linux?
       # Don't restrict to a specific GCC compiler binary we used (e.g. gcc-5).
       inreplace lib/"ruby/#{abi_version}/#{abi_arch}/rbconfig.rb" do |s|
+        rbconfig = s.to_s
         s.gsub! ENV.cxx, "c++"
         s.gsub! ENV.cc, "cc"
+        s.gsub!(/(CONFIG\["CC"\] = )"gcc-\d+"/, '\\1"cc"') if rbconfig.match?(/CONFIG\["CC"\] = "gcc-\d+"/)
+        s.gsub!(/(CONFIG\["LDSHARED"\] = )"gcc-\d+/, '\\1"cc') if rbconfig.match?(/CONFIG\["LDSHARED"\] = "gcc-\d+/)
+        s.gsub!(/(CONFIG\["CXX"\] = )"g\+\+-\d+"/, '\\1"c++"') if rbconfig.match?(/CONFIG\["CXX"\] = "g\+\+-\d+"/)
         # Change e.g. `CONFIG["AR"] = "gcc-ar-11"` to `CONFIG["AR"] = "ar"`
         s.gsub!(/(CONFIG\[".+"\] = )"gcc-(.*)-\d+"/, '\\1"\\2"')
-        rbconfig = s.to_s
         [
           %r{ ?-I/home/linuxbrew/\.linuxbrew/opt/(?:glibc@[^ /]+|linux-headers@[^ /]+)/include},
           %r{ ?-L/home/linuxbrew/\.linuxbrew/opt/glibc@[^ /]+/lib},
