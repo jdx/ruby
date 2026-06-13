@@ -58,9 +58,14 @@ jobs:
       - name: Install Homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
-          echo "/home/linuxbrew/.linuxbrew/sbin" >> "$GITHUB_PATH"
-          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            brew_prefix="/home/linuxbrew/.linuxbrew"
+          else
+            brew_prefix="/opt/homebrew"
+          fi
+          echo "${brew_prefix}/bin" >> "$GITHUB_PATH"
+          echo "${brew_prefix}/sbin" >> "$GITHUB_PATH"
+          eval "$("${brew_prefix}/bin/brew" shellenv)"
 
       - name: Tap repo
         run: bin/setup
