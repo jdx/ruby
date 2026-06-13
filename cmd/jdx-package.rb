@@ -64,10 +64,13 @@ module Homebrew
             puts "Bottled deps: #{bottled_deps.inspect}"
             puts "Other deps: #{deps.inspect}"
 
-            safe_system HOMEBREW_BREW_FILE, "install", "--skip-post-install", *verbose, *bottled_deps if bottled_deps.any?
+            install_flags = ["install"]
+            install_flags << "--skip-post-install" if OS.linux?
+
+            safe_system HOMEBREW_BREW_FILE, *install_flags, *verbose, *bottled_deps if bottled_deps.any?
 
             # Build bottles for all other dependencies.
-            safe_system HOMEBREW_BREW_FILE, "install", "--build-bottle", "--skip-post-install", *verbose, *deps if deps.any?
+            safe_system HOMEBREW_BREW_FILE, *install_flags, "--build-bottle", *verbose, *deps if deps.any?
             # Build the main bottle
             safe_system HOMEBREW_BREW_FILE, "install", "--build-bottle", *name_flags, *verbose, name
             # Uninstall the dependencies we linked in
