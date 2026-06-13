@@ -195,13 +195,14 @@ class JdxRuby33 < Formula
         s.gsub! ENV.cc, "cc"
         # Change e.g. `CONFIG["AR"] = "gcc-ar-11"` to `CONFIG["AR"] = "ar"`
         s.gsub!(/(CONFIG\[".+"\] = )"gcc-(.*)-\d+"/, '\\1"\\2"')
+        rbconfig = s.to_s
         [
           %r{ ?-I/home/linuxbrew/\.linuxbrew/opt/(?:glibc@[^ /]+|linux-headers@[^ /]+)/include},
           %r{ ?-L/home/linuxbrew/\.linuxbrew/opt/glibc@[^ /]+/lib},
           %r{ ?-B/home/linuxbrew/\.linuxbrew/opt/glibc@[^ /]+/lib},
           %r{ ?-Wl,-rpath-link=/home/linuxbrew/\.linuxbrew/opt/glibc@[^ /]+/lib},
-          " -nostdinc",
-        ].each { |pattern| s.gsub!(pattern, "") if s.match?(pattern) }
+          / -nostdinc/,
+        ].each { |pattern| s.gsub!(pattern, "") if pattern.match?(rbconfig) }
         # C++ compiler might have been disabled because we break it with glibc@* builds
         s.sub!(/(CONFIG\["CXX"\] = )"false"/, '\\1"c++"') if build.without? "yjit"
       end
