@@ -104,19 +104,22 @@ module PortableFormulaMixin
         # Prefer the relocated portable Ruby prefix when building native gems.
         # This lets mkmf find headers, static libraries, and pkg-config files
         # copied into the package even when PKG_CONFIG_PATH is not set.
+        # mkmf reads MAKEFILE_CONFIG, while callers often inspect CONFIG.
         module RbConfig
           portable_prefix = File.expand_path("..", File.dirname(RbConfig.ruby))
           portable_include = File.join(portable_prefix, "include")
           portable_lib = File.join(portable_prefix, "lib")
           portable_pkgconfig = File.join(portable_lib, "pkgconfig")
 
-          CONFIG["CPPFLAGS"] = "-I#{portable_include} #{CONFIG["CPPFLAGS"]}"
-          CONFIG["LDFLAGS"] = "-L#{portable_lib} #{CONFIG["LDFLAGS"]}"
-          CONFIG["DLDFLAGS"] = "-L#{portable_lib} #{CONFIG["DLDFLAGS"]}"
-          CONFIG["PKG_CONFIG_PATH"] = [portable_pkgconfig, CONFIG["PKG_CONFIG_PATH"]]
-            .compact
-            .reject(&:empty?)
-            .join(File::PATH_SEPARATOR)
+          [CONFIG, MAKEFILE_CONFIG].each do |config|
+            config["CPPFLAGS"] = "-I#{portable_include} #{config["CPPFLAGS"]}"
+            config["LDFLAGS"] = "-L#{portable_lib} #{config["LDFLAGS"]}"
+            config["DLDFLAGS"] = "-L#{portable_lib} #{config["DLDFLAGS"]}"
+            config["PKG_CONFIG_PATH"] = [portable_pkgconfig, config["PKG_CONFIG_PATH"]]
+              .compact
+              .reject(&:empty?)
+              .join(File::PATH_SEPARATOR)
+          end
           ENV["PKG_CONFIG_PATH"] = [portable_pkgconfig, ENV["PKG_CONFIG_PATH"]]
             .compact
             .reject(&:empty?)
