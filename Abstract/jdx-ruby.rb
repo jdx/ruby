@@ -278,7 +278,7 @@ class JdxRuby < Formula
     # These were failing before we included headers in the tarball
     # See: https://github.com/jdx/mise/discussions/7268#discussioncomment-15298593
     install_default_native_gem ruby, "openssl" if OS.mac?  # requires openssl headers
-    install_default_native_gem ruby, "psych"    # requires libyaml headers
+    install_default_native_gem ruby, "psych" if OS.mac?     # requires libyaml headers
 
     # Test that gem upgrades work for bundled gems with executables
     # This was failing due to shell polyglot format not being detected by RubyGems
