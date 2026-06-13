@@ -117,6 +117,10 @@ module PortableFormulaMixin
             .compact
             .reject(&:empty?)
             .join(File::PATH_SEPARATOR)
+          ENV["PKG_CONFIG_PATH"] = [portable_pkgconfig, ENV["PKG_CONFIG_PATH"]]
+            .compact
+            .reject(&:empty?)
+            .join(File::PATH_SEPARATOR)
         end
       RUBY
     end
