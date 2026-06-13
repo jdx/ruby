@@ -85,7 +85,7 @@ jobs:
               log_root="${HOME}/.cache/Homebrew/Logs"
             fi
             if [[ -d "$log_root" ]]; then
-              find "$log_root" -maxdepth 3 -type f -print -exec sh -c '
+              find "$log_root" -maxdepth 8 -type f -print -exec sh -c '
                 for log_file do
                   printf "\n==> %s <==\n" "$log_file"
                   tail -n 120 "$log_file"
