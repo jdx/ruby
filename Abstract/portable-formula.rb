@@ -110,9 +110,10 @@ module PortableFormulaMixin
           portable_include = File.join(portable_prefix, "include")
           portable_lib = File.join(portable_prefix, "lib")
           portable_pkgconfig = File.join(portable_lib, "pkgconfig")
+          portable_cppflags = "-include stdbool.h -I#{portable_include}"
 
           [CONFIG, MAKEFILE_CONFIG].each do |config|
-            config["CPPFLAGS"] = "-I#{portable_include} #{config["CPPFLAGS"]}"
+            config["CPPFLAGS"] = "#{portable_cppflags} #{config["CPPFLAGS"]}"
             config["LDFLAGS"] = "-L#{portable_lib} #{config["LDFLAGS"]}"
             config["DLDFLAGS"] = "-L#{portable_lib} #{config["DLDFLAGS"]}"
             config["PKG_CONFIG_PATH"] = [portable_pkgconfig, config["PKG_CONFIG_PATH"]]
