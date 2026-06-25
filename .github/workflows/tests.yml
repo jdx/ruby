@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@1141dcc5d01333e0891094766c3b2cf2ae3df7df # main
+        uses: Homebrew/actions/setup-homebrew@c7f77f7dca7d714f9a72fde4e7b6a4e9cbf99062 # main
       - run: brew test-bot --only-tap-syntax
 
   build:
