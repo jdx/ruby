@@ -211,7 +211,9 @@ class PortableRubyPackage
   def build_ncurses_and_libedit
     ncurses_source = extract_source("ncurses", @deps.fetch("ncurses"))
     ncurses = dep_prefix("ncurses")
-    ncurses_env = dependency_build_env
+    ncurses_pkgconfig = File.join(ncurses, "lib", "pkgconfig")
+    FileUtils.mkdir_p(ncurses_pkgconfig)
+    ncurses_env = dependency_build_env("PKG_CONFIG_LIBDIR" => ncurses_pkgconfig)
     run "./configure",
         "--disable-dependency-tracking",
         "--prefix=#{ncurses}",
@@ -219,7 +221,7 @@ class PortableRubyPackage
         "--disable-shared",
         "--without-cxx-binding",
         "--enable-pc-files",
-        "--with-pkg-config-libdir=#{File.join(ncurses, "lib", "pkgconfig")}",
+        "--with-pkg-config-libdir=#{ncurses_pkgconfig}",
         "--enable-sigwinch",
         "--enable-symlinks",
         "--enable-widec",
@@ -391,14 +393,24 @@ class PortableRubyPackage
 
       source = extract_source("baseruby", @ruby_recipe)
       prefix = File.join(@build_root, "baseruby")
-      env = build_env("BASERUBY" => bootstrap, "LC_ALL" => "C.UTF-8", "LANG" => "C.UTF-8")
+      env = dependency_build_env(
+        "BASERUBY" => bootstrap,
+        "LC_ALL" => "C.UTF-8",
+        "LANG" => "C.UTF-8",
+        "PKG_CONFIG_PATH" => [
+          File.join(dep_prefix("libyaml"), "lib", "pkgconfig"),
+          File.join(dep_prefix("zlib"), "lib", "pkgconfig")
+        ].join(File::PATH_SEPARATOR)
+      )
       args = [
         "--prefix=#{prefix}",
         "--disable-install-doc",
         "--disable-dependency-tracking",
         "--with-baseruby=#{bootstrap}",
+        "--with-libyaml-dir=#{dep_prefix("libyaml")}",
+        "--with-zlib-dir=#{dep_prefix("zlib")}",
         "--without-gmp",
-        "--with-out-ext=win32,win32ole,openssl,psych,zlib,readline,fiddle"
+        "--with-out-ext=win32,win32ole,openssl,readline,fiddle"
       ]
       args << "MKDIR_P=/bin/mkdir -p" if linux?
 
