@@ -542,7 +542,10 @@ class PortableRubyPackage
           / ?-fuse-linker-plugin/,
           / ?-fuse-ld=[^ ]+/,
           / ?-flto(?:=[^ ]+)?/,
-          / ?[^ ]*liblto_plugin\\.so/
+          / ?[^ ]*liblto_plugin\\.so/,
+          / ?-Wduplicated-cond/,
+          / ?-Wimplicit-fallthrough(?:=\\d+)?/,
+          / ?-Wmisleading-indentation/
         ]
 
         darwin = CONFIG["host_os"].to_s.include?("darwin")
@@ -563,7 +566,7 @@ class PortableRubyPackage
           config["AR"] = "ar"
           config["NM"] = "nm"
           config["RANLIB"] = "ranlib"
-          %w[CFLAGS CPPFLAGS CXXFLAGS LDFLAGS DLDFLAGS LIBS LDSHARED LDSHAREDXX DLDSHARED].each do |key|
+          %w[CFLAGS CPPFLAGS CXXFLAGS LDFLAGS DLDFLAGS LIBS LDSHARED LDSHAREDXX DLDSHARED warnflags].each do |key|
             next unless config[key]
             scrub_patterns.each { |pattern| config[key] = config[key].gsub(pattern, "") }
             config[key] = config[key].squeeze(" ").strip
