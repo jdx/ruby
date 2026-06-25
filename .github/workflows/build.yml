@@ -103,7 +103,7 @@ jobs:
             "$CONTAINER" \
             /bin/bash -lc '
               set -euxo pipefail
-              yum install -y curl tar gzip xz make gcc gcc-c++ perl perl-IPC-Cmd patch file findutils diffutils which git binutils
+              yum install -y curl tar gzip xz make gcc gcc-c++ perl perl-IPC-Cmd perl-Time-Piece patch file findutils diffutils which git binutils
 
               bootstrap_version="$BOOTSTRAP_VERSION"
               bootstrap_root=".build/bootstrap/${TARGET}-${bootstrap_version}"
