@@ -1,0 +1,40 @@
+---
+schema: 1
+defaults:
+  bundled_gems:
+    msgpack:
+      version: 1.8.0
+      url: https://rubygems.org/downloads/msgpack-1.8.0.gem
+      sha256: e64ce0212000d016809f5048b48eb3a65ffb169db22238fb4b72472fecb2d732
+    bootsnap:
+      version: 1.18.6
+      url: https://rubygems.org/downloads/bootsnap-1.18.6.gem
+      sha256: 0ae2393c1e911e38be0f24e9173e7be570c3650128251bf06240046f84a07d00
+  requires_matching_baseruby: false
+  use_libedit: false
+series:
+  "3.2":
+    requires_matching_baseruby: true
+    use_libedit: true
+    bundled_gems:
+      msgpack:
+        version: 1.8.0
+        url: https://rubygems.org/downloads/msgpack-1.8.0.gem
+        sha256: e64ce0212000d016809f5048b48eb3a65ffb169db22238fb4b72472fecb2d732
+      bootsnap:
+        version: 1.18.4
+        url: https://rubygems.org/downloads/bootsnap-1.18.4.gem
+        sha256: ac4c42af397f7ee15521820198daeff545e4c360d2772c601fbdc2c07d92af55
+  "3.3":
+    bundled_gems:
+      msgpack:
+        version: 1.8.0
+        url: https://rubygems.org/downloads/msgpack-1.8.0.gem
+        sha256: e64ce0212000d016809f5048b48eb3a65ffb169db22238fb4b72472fecb2d732
+      bootsnap:
+        version: 1.18.4
+        url: https://rubygems.org/downloads/bootsnap-1.18.4.gem
+        sha256: ac4c42af397f7ee15521820198daeff545e4c360d2772c601fbdc2c07d92af55
+  "3.4": {}
+  "3.5": {}
+  "4.0": {}

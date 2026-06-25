@@ -4,61 +4,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository builds portable Ruby binaries that can be installed and run from anywhere on the filesystem. It's a Homebrew tap (`jdx/ruby`) containing formulae for building relocatable Ruby with YJIT support.
+This repository builds portable Ruby binaries that can be installed and run from anywhere on the filesystem. The build source of truth is the checked-in YAML under `recipes/`; Homebrew is not used by local packaging or CI release workflows.
 
 ## Development Commands
 
-**Initial setup:**
+Validate the recipe files:
+
 ```bash
-bin/setup  # Taps this repo as jdx/ruby in Homebrew
+bin/validate-recipes
 ```
 
-**Build a Ruby version locally:**
+Build a Ruby version locally:
+
 ```bash
-bin/package 3.4.5  # Builds jdx-ruby@3.4.5 with YJIT
-brew jdx-package jdx-ruby@3.4.5 --no-uninstall-deps --debug --verbose
+bin/package 3.4.9 --target macos --yjit --output rubies
+bin/package 3.4.9 --target x86_64_linux --no-yjit --output rubies
 ```
 
-**For Ruby 3.2.x builds:** Requires a matching BASERUBY. Set `HOMEBREW_BASERUBY` to the path of an existing Ruby 3.2.x binary.
+Builds need a baseruby of Ruby 3.0.0 or newer; set `JDX_RUBY_BASERUBY` when the shell default is older. Ruby 3.2.x builds require `JDX_RUBY_BASERUBY` to point to an existing Ruby executable with the same version.
 
-**Lint:**
-```bash
-brew test-bot --only-tap-syntax
-```
+YJIT builds require `rustup` or `rustc` in `PATH`. Set `JDX_RUBY_RUSTUP_HOME` to isolate rustup state when desired.
 
 ## Architecture
 
-### Formula Inheritance Hierarchy
+### Recipe Files
 
-```
-PortableFormula (Abstract/portable-formula.rb)
-    └── JdxRuby (Abstract/jdx-ruby.rb) - Ruby 3.2.x
-    └── JdxRuby32 (Abstract/jdx-ruby-32.rb) - Ruby 3.2.x specific
-    └── JdxRuby33 (Abstract/jdx-ruby-33.rb) - Ruby 3.3.x specific
-    └── JdxRuby34 (Abstract/jdx-ruby-34.rb) - Ruby 3.4.x specific
-        └── Formula/jdx-ruby@X.Y.Z.rb - Individual version formulae
-```
+- `recipes/rubies.yml`: Ruby source URL, SHA256, series, and prerelease version metadata.
+- `recipes/dependencies.yml`: portable dependency source URL and SHA256 metadata.
+- `recipes/series.yml`: per-series behavior such as libedit, bundled gems, and baseruby requirements.
+- `recipes/targets.yml`: release targets, artifact platform names, and pinned manylinux2014 containers.
 
-- **PortableFormula** (`Abstract/portable-formula.rb`): Base mixin that handles cross-platform build configuration and removes Homebrew/Linuxbrew environment variables for portable builds
-- **JdxRuby** classes: Define Ruby build configuration, dependencies (OpenSSL, libyaml, libffi, zlib, libxcrypt), and install/test methods
-- **Version formulae** (`Formula/jdx-ruby@X.Y.Z.rb`): Minimal files that specify URL and SHA256 for each Ruby version
+### Commands
 
-### Brew Commands
-
-- **cmd/jdx-package.rb**: Main packaging command (`brew jdx-package`). Handles dependency resolution, builds bottles, runs tests, and renames output files for release
-- **cmd/jdx-upload.rb**: Upload command for releasing bottles to GHCR and GitHub releases
+- `bin/package`: Builds portable dependencies, builds Ruby, runs runtime/linkage/ABI checks, and writes release tarballs.
+- `bin/validate-recipes`: Validates YAML shape, required fields, duplicate versions, URL/SHA256 formats, and target matrix completeness.
+- `bin/update-ruby-recipe`: Adds or updates a Ruby entry in `recipes/rubies.yml`; used by autobump.
 
 ### Key Build Details
 
-- YJIT is enabled by default (requires Rust 1.58); use `--without-yjit` for older glibc
-- Bundled gems (msgpack, bootsnap) are added during build
-- SSL certificates are bundled in `libexec/cert.pem`
-- Native gem compilation headers are copied from portable dependencies
-- Shell polyglot executables are patched for RubyGems compatibility
+- Linux builds use pinned manylinux2014/glibc 2.17 containers for both YJIT and no-YJIT artifacts.
+- macOS builds use Xcode/system clang and source-built portable dependencies.
+- `pkgconf` is built as a bootstrap tool so macOS does not need Homebrew.
+- OpenSSL, libyaml, libffi, libxcrypt, zlib, ncurses, and libedit are source-built into an isolated prefix as needed.
+- Bundled `msgpack` and `bootsnap` gems are staged during the Ruby build.
+- SSL certificates are bundled in `libexec/cert.pem`.
+- Native gem compilation headers, static libs, and pkg-config files are copied into the portable Ruby prefix.
+- Shell polyglot executables and `rbconfig.rb` are patched for relocatable native gem builds.
 
 ### Output Naming
 
-The `jdx-package.rb` command transforms Homebrew bottle naming to portable naming:
-- `jdx-ruby@3.4.5--...` → `ruby-3.4.5...`
-- Platform tags are simplified to `.macos.` or `.linux.`
-- Tarballs are repacked with flattened structure (`ruby-VERSION/...`)
+Release tarballs keep the existing names:
+
+- `ruby-VERSION.macos.tar.gz`
+- `ruby-VERSION.x86_64_linux.tar.gz`
+- `ruby-VERSION.x86_64_linux.no_yjit.tar.gz`
+- `ruby-VERSION.arm64_linux.tar.gz`
+- `ruby-VERSION.arm64_linux.no_yjit.tar.gz`

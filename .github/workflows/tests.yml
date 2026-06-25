@@ -17,18 +17,25 @@ jobs:
   syntax:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@1141dcc5d01333e0891094766c3b2cf2ae3df7df # main
-      - run: brew test-bot --only-tap-syntax
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # main
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+      - name: Validate recipes
+        run: bin/validate-recipes
+      - name: Check Ruby syntax
+        run: |
+          ruby -c libexec/package.rb
+          ruby -c libexec/validate_recipes.rb
+          ruby -c libexec/update_ruby_recipe.rb
 
   build:
     needs: syntax
     if: github.event_name == 'pull_request'
     uses: ./.github/workflows/build.yml
     with:
-      formula: jdx-ruby@3.4.1
+      version: 3.4.1
 
-  # This job is used as a required status check
   final:
     needs:
       - syntax

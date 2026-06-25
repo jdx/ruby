@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - Formula/jdx-ruby@*.rb
+      - recipes/rubies.yml
       - .github/workflows/release-new.yml
   workflow_dispatch:
     inputs:
@@ -15,10 +15,8 @@ on:
         type: boolean
         default: false
   schedule:
-    # Run every 12 hours to pick up new versions
     - cron: "30 */12 * * *"
 
-# Prevent multiple release-new runs from overlapping
 concurrency:
   group: release-new
   cancel-in-progress: false
@@ -31,27 +29,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # main
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
 
       - name: Find versions to release
         id: find-versions
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # Get all formula versions (extract version from jdx-ruby@X.Y.Z.rb)
-          # Matches stable (X.Y.Z) and preview (X.Y.Z-preview1, X.Y.Z-rc1, etc.)
-          formula_versions=$(ls Formula/jdx-ruby@*.rb | sed 's/Formula\/jdx-ruby@//; s/\.rb//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' || true)
+          recipe_versions=$(ruby -ryaml -e 'puts YAML.load_file("recipes/rubies.yml").fetch("rubies").keys')
 
           if [[ "${{ inputs.replace_all }}" == "true" ]]; then
-            # Release all versions
-            versions_to_release="$formula_versions"
+            versions_to_release="$recipe_versions"
             echo "Replacing all releases"
           else
-            # Get existing releases
             existing_releases=$(gh release list --limit 100 --json tagName --jq '.[].tagName' || true)
-
-            # Find versions without releases
             versions_to_release=""
-            for version in $formula_versions; do
+            for version in $recipe_versions; do
               if ! echo "$existing_releases" | grep -q "^${version}$"; then
                 versions_to_release="$versions_to_release $version"
               fi
@@ -59,13 +54,10 @@ jobs:
             echo "Found versions without releases: $versions_to_release"
           fi
 
-          # Output as JSON array
           versions_json=$(echo $versions_to_release | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s -c .)
           echo "versions=$versions_json" >> "$GITHUB_OUTPUT"
 
-          # Determine latest stable version (highest non-preview version)
-          all_versions=$(ls Formula/jdx-ruby@*.rb | sed 's/Formula\/jdx-ruby@//; s/\.rb//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
-          latest_stable=$(echo "$all_versions" | sort -V | tail -1)
+          latest_stable=$(ruby -ryaml -e 'puts YAML.load_file("recipes/rubies.yml").fetch("rubies").keys.grep(/\A\d+\.\d+\.\d+\z/).sort_by { |v| v.split(".").map(&:to_i) }.last')
           echo "latest_stable=$latest_stable" >> "$GITHUB_OUTPUT"
           echo "Latest stable version: $latest_stable"
 
@@ -84,6 +76,5 @@ jobs:
               echo "Triggering release for $version"
               gh workflow run release.yml -f version="$version"
             fi
-            # Small delay to avoid rate limiting
             sleep 5
           done

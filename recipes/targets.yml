@@ -1,0 +1,16 @@
+---
+schema: 1
+targets:
+  macos:
+    os: macos
+    artifact_platform: macos
+  x86_64_linux:
+    os: linux
+    artifact_platform: x86_64_linux
+    container: quay.io/pypa/manylinux2014_x86_64:2026.06.25-1@sha256:e19f84d04229d95eff831b6d4d9a44b9ba8d25a76ee2fce0eb9d6f0785e62f02
+    max_glibc: "2.17"
+  arm64_linux:
+    os: linux
+    artifact_platform: arm64_linux
+    container: quay.io/pypa/manylinux2014_aarch64:2026.06.25-1@sha256:9c8e0985470699c10aade65c740240c5cf83e4eb96bbfc5d8fe5f91bb26e4dcf
+    max_glibc: "2.17"

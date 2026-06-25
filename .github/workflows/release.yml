@@ -19,10 +19,6 @@ concurrency:
   group: release-${{ inputs.version }}
   cancel-in-progress: false
 
-env:
-  HOMEBREW_DEVELOPER: 1
-  HOMEBREW_NO_AUTO_UPDATE: 1
-
 permissions:
   contents: read
   id-token: write
@@ -31,106 +27,9 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-14
-            yjit: true
-          - runner: ubuntu-22.04
-            yjit: true
-          - runner: ubuntu-22.04
-            yjit: false
-          - runner: ubuntu-22.04-arm
-            yjit: true
-          - runner: ubuntu-22.04-arm
-            yjit: false
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # main
-
-      # Disabled: Code signing causes issues with native gems compiled locally
-      # See: https://github.com/jdx/mise/discussions/7268
-      # - name: Import codesign certs
-      #   if: runner.os == 'macOS'
-      #   uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3
-      #   with:
-      #     p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
-      #     p12-password: ${{ secrets.CERTIFICATES_P12_PASS }}
-
-      - uses: ruby/setup-ruby@v1
-        id: setup-ruby
-        with:
-          ruby-version: ${{ inputs.version }}
-
-      - name: Install Homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          echo "/home/linuxbrew/.linuxbrew/bin" >> $GITHUB_PATH
-          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-
-      - name: Tap repo
-        run: bin/setup
-
-      - name: Fix Bundler permissions (ARM Linux)
-        if: runner.os == 'Linux' && runner.arch == 'ARM64'
-        run: chmod -R go-w /home/linuxbrew/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle || true
-
-      - name: Build jdx Ruby
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
-        with:
-          timeout_minutes: 30
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
-              export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
-            fi
-            YJIT_FLAG=""
-            if [[ "${{ matrix.yjit }}" == "false" ]]; then
-              YJIT_FLAG="--without-yjit"
-            fi
-            mkdir -p rubies/
-            cd rubies
-            brew jdx-package --verbose $YJIT_FLAG jdx-ruby@${{ inputs.version }}
-
-      # Disabled: Code signing causes issues with native gems compiled locally
-      # See: https://github.com/jdx/mise/discussions/7268
-      # - name: Codesign macOS binaries
-      #   if: runner.os == 'macOS'
-      #   working-directory: rubies
-      #   run: |
-      #     tarball=$(ls *.tar.gz)
-      #     echo "Signing binaries in $tarball"
-      #
-      #     # Extract
-      #     mkdir -p extracted
-      #     tar -xzf "$tarball" -C extracted
-      #
-      #     # Sign Mach-O executables and bundles (skip .dSYM, .o, .a files)
-      #     find extracted -type f \( -name "*.bundle" -o -name "*.dylib" -o -perm +111 \) \
-      #       -not -path "*.dSYM/*" \
-      #       -not -name "*.o" \
-      #       -not -name "*.a" | while read -r file; do
-      #       if file "$file" | grep -q "Mach-O"; then
-      #         echo "Signing $file"
-      #         codesign --sign "Developer ID Application: Jeffrey Dickey (4993Y37DX6)" \
-      #           --identifier "dev.jdx.ruby" \
-      #           --options runtime \
-      #           --force \
-      #           "$file"
-      #       fi
-      #     done
-      #
-      #     # Re-create tarball
-      #     rm "$tarball"
-      #     tar -czf "$tarball" -C extracted .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: ruby-${{ inputs.version }}-${{ matrix.runner }}-yjit-${{ matrix.yjit }}
-          path: rubies/
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ inputs.version }}
 
   combine-hashes:
     needs: build

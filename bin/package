@@ -1,28 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-NUMBER="$1"
-
-export HOMEBREW_RUSTUP_HOME="$HOME/.rustup"
-
-if [[ "$NUMBER" == "3.2."* ]]; then
-  export HOMEBREW_BASERUBY="$HOME/.rubies/ruby-${NUMBER}/bin/ruby"
-fi
-
-if [[ -n "$HOMEBREW_BASERUBY" && ! -f "$HOMEBREW_BASERUBY" ]]; then
-  brew install ruby-install
-  (which apt && sudo apt update) || true
-  ruby-install "$NUMBER"
-fi
-
-if [[ "dev" == "$NUMBER" ]]; then
-  PACKAGE="jdx-ruby-dev"
-else
-  PACKAGE="jdx-ruby@${NUMBER}"
-fi
-
-set -x
-brew uninstall --force "$PACKAGE"
-brew jdx-package "$PACKAGE" \
-  --no-uninstall-deps \
-  --debug \
-  --verbose
+exec RbConfig.ruby, File.expand_path("../libexec/package.rb", __dir__), *ARGV

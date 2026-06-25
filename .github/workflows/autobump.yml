@@ -1,4 +1,4 @@
-name: Bump formulae on schedule or request
+name: Bump Ruby recipes on schedule or request
 
 on:
   push:
@@ -8,7 +8,6 @@ on:
       - .github/workflows/autobump.yml
   workflow_dispatch:
   schedule:
-    # Twice daily at midnight and noon UTC
     - cron: "0 0,12 * * *"
 
 permissions:
@@ -21,34 +20,31 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # main
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Check for new Ruby versions
+      - name: Check for new stable Ruby versions
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # Discover all minor series with stable releases from ruby/ruby
+          set -euo pipefail
           all_tags=$(gh release list --repo ruby/ruby --limit 200 --json tagName --jq '.[].tagName')
 
-          # Extract unique minor versions (e.g., 3.2, 3.3, 3.4, 4.0) from stable release tags
-          # Handles both old format (v3_2_0) and new format (v4.0.0)
           minor_versions=$(echo "$all_tags" | grep -v -iE '(preview|rc)' | \
             sed 's/^v//; s/_/./g' | \
             grep -oE '^[0-9]+\.[0-9]+' | \
             sort -V -u)
-
-          # Only process 3.2+ (older versions aren't supported)
           minor_versions=$(echo "$minor_versions" | awk -F. '$1 > 3 || ($1 == 3 && $2 >= 2)')
 
           echo "Discovered minor series: $(echo $minor_versions | tr '\n' ' ')"
 
           for minor in $minor_versions; do
-            # Get latest release for this minor version from ruby/ruby
-            # Match both old format (v3_2_0) and new format (v4.0.0)
             underscore_prefix="v${minor//./_}_"
             dot_prefix="v${minor//./\\.}\\."
             latest=$(echo "$all_tags" | \
@@ -63,78 +59,46 @@ jobs:
               continue
             fi
 
-            echo "Latest $minor release: $latest"
-
-            # Check if formula exists
-            formula_file="Formula/jdx-ruby@${latest}.rb"
-            if [[ -f "$formula_file" ]]; then
-              echo "Formula already exists: $formula_file"
+            if ruby -ryaml -e 'exit(YAML.load_file("recipes/rubies.yml").fetch("rubies").key?(ARGV.fetch(0)) ? 0 : 1)' "$latest"; then
+              echo "Recipe already exists: $latest"
               continue
             fi
 
-            # Get SHA256 from ruby-lang.org
             tarball_url="https://cache.ruby-lang.org/pub/ruby/${minor}/ruby-${latest}.tar.gz"
             echo "Fetching SHA256 for $tarball_url"
-            sha256=$(curl -sL "$tarball_url" | sha256sum | cut -d' ' -f1)
-
-            if [[ -z "$sha256" || "$sha256" == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]]; then
-              echo "Failed to get SHA256 for $latest"
+            if ! curl -fsSL "$tarball_url" -o /tmp/ruby.tar.gz; then
+              echo "Failed to download $tarball_url"
               continue
             fi
+            sha256=$(sha256sum /tmp/ruby.tar.gz | cut -d' ' -f1)
 
-            # Determine abstract class (3.2 -> 32, 3.3 -> 33, etc)
-            abstract_num="${minor//./}"
-            class_version="${latest//./}"
-
-            # Use version-specific abstract class if it exists, otherwise use base
-            if [[ -f "Abstract/jdx-ruby-${abstract_num}.rb" ]]; then
-              abstract_file="jdx-ruby-${abstract_num}"
-              abstract_class="JdxRuby${abstract_num}"
-            else
-              abstract_file="jdx-ruby"
-              abstract_class="JdxRuby"
+            bin/update-ruby-recipe "$latest" "$tarball_url" "$sha256"
+            bin/validate-recipes
+            if ! git diff --quiet -- recipes/rubies.yml; then
+              git add recipes/rubies.yml
+              git commit -m "Add Ruby ${latest}"
             fi
-
-            echo "Creating formula for Ruby $latest"
-            printf 'require File.expand_path("../Abstract/%s", __dir__)\n\nclass JdxRubyAT%s < %s\n  url "%s"\n  sha256 "%s"\nend\n' \
-              "$abstract_file" "$class_version" "$abstract_class" "$tarball_url" "$sha256" > "$formula_file"
-
-            git add "$formula_file"
-            git commit -m "Add jdx-ruby@${latest}"
-            echo "Created $formula_file"
           done
 
       - name: Check for prerelease Ruby versions
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # Check for preview/rc releases for upcoming versions
-          # Only pick up prereleases for minor versions that don't have stable releases yet
-
-          # Get all releases once
+          set -euo pipefail
           all_releases=$(gh release list --repo ruby/ruby --limit 200 --json tagName --jq '.[].tagName')
 
           echo "$all_releases" | while read -r tag; do
-            # Skip if not a prerelease (must contain preview or rc)
             if ! echo "$tag" | grep -qiE '(preview|rc)'; then
               continue
             fi
 
-            # Convert tag to version string
-            # Handle both formats: v3_5_0_preview1 and v4.0.0-preview2
             if echo "$tag" | grep -q '\.'; then
-              # New format: v4.0.0-preview2 -> 4.0.0-preview2
               version=$(echo "$tag" | sed 's/^v//')
             else
-              # Old format: v3_5_0_preview1 -> 3.5.0-preview1
-              version=$(echo "$tag" | sed 's/^v//; s/_/./g' | sed 's/\.\(preview\)/\-\1/i; s/\.\(rc\)/-\1/i')
+              version=$(echo "$tag" | sed 's/^v//; s/_/./g' | sed 's/\.\(preview\)/-\1/i; s/\.\(rc\)/-\1/i')
             fi
 
-            # Extract minor version (e.g., 3.5 from 3.5.0-preview1)
             minor=$(echo "$version" | grep -oE '^[0-9]+\.[0-9]+')
-
-            # Skip if this minor version already has a stable release
-            # Check for tags like v3_5_0, v3_5_1, v4.0.0, etc. (stable = no preview/rc suffix)
             underscore_pattern="^v${minor//./_}_[0-9]+$"
             dot_pattern="^v${minor//./\\.}\.[0-9]+$"
             if echo "$all_releases" | grep -qE "(${underscore_pattern}|${dot_pattern})"; then
@@ -142,37 +106,31 @@ jobs:
               continue
             fi
 
-            echo "Found prerelease: $version (tag: $tag)"
-
-            # Check if formula already exists
-            formula_file="Formula/jdx-ruby@${version}.rb"
-            if [[ -f "$formula_file" ]]; then
-              echo "Formula already exists: $formula_file"
+            if ruby -ryaml -e 'exit(YAML.load_file("recipes/rubies.yml").fetch("rubies").key?(ARGV.fetch(0)) ? 0 : 1)' "$version"; then
+              echo "Recipe already exists: $version"
               continue
             fi
 
-            # Get SHA256 from ruby-lang.org
             tarball_url="https://cache.ruby-lang.org/pub/ruby/${minor}/ruby-${version}.tar.gz"
             echo "Fetching SHA256 for $tarball_url"
-            sha256=$(curl -sL "$tarball_url" | sha256sum | cut -d' ' -f1)
-
-            if [[ -z "$sha256" || "$sha256" == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]]; then
-              echo "Failed to get SHA256 for $version (tarball may not be available yet)"
+            if ! curl -fsSL "$tarball_url" -o /tmp/ruby.tar.gz; then
+              echo "Failed to download $tarball_url"
               continue
             fi
+            sha256=$(sha256sum /tmp/ruby.tar.gz | cut -d' ' -f1)
 
-            # Create class name: 3.5.0-preview1 -> 350Preview1
-            # Remove dots and hyphens, capitalize preview/rc
-            class_version=$(echo "$version" | sed 's/\.//g; s/-//g; s/preview/Preview/i; s/rc/Rc/i')
-
-            echo "Creating formula for Ruby $version"
-            printf 'require File.expand_path("../Abstract/jdx-ruby", __dir__)\n\nclass JdxRubyAT%s < JdxRuby\n  url "%s"\n  sha256 "%s"\n  version "%s"\nend\n' \
-              "$class_version" "$tarball_url" "$sha256" "$version" > "$formula_file"
-
-            git add "$formula_file"
-            git commit -m "Add jdx-ruby@${version}"
-            echo "Created $formula_file"
+            bin/update-ruby-recipe "$version" "$tarball_url" "$sha256"
+            bin/validate-recipes
+            if ! git diff --quiet -- recipes/rubies.yml; then
+              git add recipes/rubies.yml
+              git commit -m "Add Ruby ${version}"
+            fi
           done
 
       - name: Push changes
-        run: git push
+        run: |
+          if git log --oneline "origin/${GITHUB_REF_NAME}..HEAD" | grep -q .; then
+            git push
+          else
+            echo "No recipe changes to push"
+          fi

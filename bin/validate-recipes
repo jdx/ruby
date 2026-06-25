@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+exec RbConfig.ruby, File.expand_path("../libexec/validate_recipes.rb", __dir__), *ARGV

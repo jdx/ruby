@@ -3,102 +3,153 @@ name: Build
 on:
   workflow_dispatch:
     inputs:
-      formula:
+      version:
         required: true
         type: string
   workflow_call:
     inputs:
-      formula:
+      version:
         required: true
         type: string
 
 permissions:
   contents: read
 
-env:
-  HOMEBREW_DEVELOPER: 1
-  HOMEBREW_NO_AUTO_UPDATE: 1
-
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - runner: macos-14
-            yjit: true
-          - runner: ubuntu-22.04
-            yjit: true
-          - runner: ubuntu-22.04
-            yjit: false
-          - runner: ubuntu-22.04-arm
-            yjit: true
-          - runner: ubuntu-22.04-arm
-            yjit: false
-      fail-fast: false
-    runs-on: ${{ matrix.runner }}
+  build-macos:
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # main
 
-      - name: Get version for setup-ruby
-        run: |
-          SETUP_RUBY_VERSION=${{ inputs.formula }}
-          SETUP_RUBY_VERSION=${SETUP_RUBY_VERSION//jdx-ruby}
-          SETUP_RUBY_VERSION=${SETUP_RUBY_VERSION//@}
-          if [[ "$SETUP_RUBY_VERSION" == "3.2."* ]]; then
-            echo "SETUP_RUBY_VERSION=${SETUP_RUBY_VERSION}" >> "$GITHUB_ENV"
-          fi
-
-      # Static gem extensions typically require the same Ruby version available already
       - uses: ruby/setup-ruby@v1
         id: setup-ruby
-        if: ${{ env.SETUP_RUBY_VERSION != '' }}
         with:
-          ruby-version: ${{ env.SETUP_RUBY_VERSION }}
+          ruby-version: ${{ inputs.version }}
 
-      - name: Install Homebrew
+      - name: Install Rust
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            brew_prefix="/home/linuxbrew/.linuxbrew"
-          else
-            brew_prefix="/opt/homebrew"
-          fi
-          echo "${brew_prefix}/bin" >> "$GITHUB_PATH"
-          echo "${brew_prefix}/sbin" >> "$GITHUB_PATH"
-          eval "$("${brew_prefix}/bin/brew" shellenv)"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-      - name: Tap repo
-        run: bin/setup
+      - name: Build portable Ruby
+        env:
+          JDX_RUBY_BASERUBY: ${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby
+          JDX_RUBY_RUSTUP_HOME: ${{ github.workspace }}/.build/rustup-macos
+        run: bin/package "${{ inputs.version }}" --target macos --yjit --output rubies
 
-      - name: Trust tap
-        run: brew trust jdx/ruby
-
-      - name: Fix Bundler permissions (ARM Linux)
-        if: runner.os == 'Linux' && runner.arch == 'ARM64'
-        run: chmod -R go-w /home/linuxbrew/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle || true
-
-      - name: Build jdx Ruby
-        run: |
-          if [[ -n "${{ steps.setup-ruby.outputs.ruby-prefix }}" ]]; then
-            export HOMEBREW_BASERUBY="${{ steps.setup-ruby.outputs.ruby-prefix }}/bin/ruby"
-          fi
-          YJIT_FLAG=""
-          if [[ "${{ matrix.yjit }}" == "false" ]]; then
-            YJIT_FLAG="--without-yjit"
-          fi
-          mkdir -p rubies/
-          cd rubies
-          brew jdx-package --verbose $YJIT_FLAG ${{ inputs.formula }}
-
-      - name: Upload jdx Ruby
+      - name: Upload portable Ruby
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.formula }}_${{ matrix.runner }}_yjit-${{ matrix.yjit }}
-          path: ${{ github.workspace }}/rubies
+          name: ruby-${{ inputs.version }}-macos-yjit-true
+          path: rubies/
 
-      - name: Test Portable Ruby
+      - name: Test portable Ruby
         run: |
-          mkdir -p jdx-ruby/
+          mkdir -p jdx-ruby
+          tar --strip-components 1 -C jdx-ruby -xf rubies/*.tar.gz
+          export PATH="${PWD}/jdx-ruby/bin:${PATH}"
+          ruby --version --yjit
+          ruby -r debug -r bigdecimal -r json -r yaml -r reline -e "true"
+
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            target: x86_64_linux
+            yjit: true
+          - runner: ubuntu-22.04
+            target: x86_64_linux
+            yjit: false
+          - runner: ubuntu-22.04-arm
+            target: arm64_linux
+            yjit: true
+          - runner: ubuntu-22.04-arm
+            target: arm64_linux
+            yjit: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # main
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+
+      - name: Resolve target container
+        id: target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          container=$(ruby -ryaml -e 'puts YAML.load_file("recipes/targets.yml").fetch("targets").fetch(ENV.fetch("TARGET")).fetch("container")')
+          echo "container=$container" >> "$GITHUB_OUTPUT"
+
+      - name: Build portable Ruby in manylinux2014
+        env:
+          VERSION: ${{ inputs.version }}
+          TARGET: ${{ matrix.target }}
+          YJIT: ${{ matrix.yjit }}
+          CONTAINER: ${{ steps.target.outputs.container }}
+          BOOTSTRAP_VERSION: "3.4.7"
+        run: |
+          set -euxo pipefail
+          docker pull "$CONTAINER"
+          docker run --rm \
+            -e VERSION \
+            -e TARGET \
+            -e YJIT \
+            -e BOOTSTRAP_VERSION \
+            -v "$PWD:/work" \
+            -w /work \
+            "$CONTAINER" \
+            /bin/bash -lc '
+              set -euxo pipefail
+              yum install -y curl tar gzip xz make gcc gcc-c++ perl patch file findutils diffutils which git
+
+              bootstrap_version="$BOOTSTRAP_VERSION"
+              if [[ "$VERSION" == 3.2.* ]]; then
+                bootstrap_version="$VERSION"
+              fi
+
+              bootstrap_root=".build/bootstrap/${TARGET}-${bootstrap_version}"
+              if [[ ! -x "${bootstrap_root}/bin/ruby" ]]; then
+                case "$TARGET" in
+                  x86_64_linux) bootstrap_platform="x86_64_linux" ;;
+                  arm64_linux) bootstrap_platform="arm64_linux" ;;
+                  *) echo "unknown target: $TARGET" >&2; exit 1 ;;
+                esac
+                bootstrap_url="https://github.com/jdx/ruby/releases/download/${bootstrap_version}/ruby-${bootstrap_version}.${bootstrap_platform}.no_yjit.tar.gz"
+                rm -rf "$bootstrap_root"
+                mkdir -p "$bootstrap_root"
+                curl -fL --retry 3 -o /tmp/bootstrap-ruby.tar.gz "$bootstrap_url"
+                tar -xzf /tmp/bootstrap-ruby.tar.gz -C "$bootstrap_root" --strip-components 1
+              fi
+
+              export PATH="${PWD}/${bootstrap_root}/bin:${PATH}"
+              if [[ "$YJIT" == "true" ]]; then
+                curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+                export PATH="${HOME}/.cargo/bin:${PATH}"
+                export JDX_RUBY_RUSTUP_HOME="${PWD}/.build/rustup-${TARGET}"
+                yjit_arg="--yjit"
+              else
+                yjit_arg="--no-yjit"
+              fi
+              if [[ "$VERSION" == 3.2.* ]]; then
+                export JDX_RUBY_BASERUBY="${PWD}/${bootstrap_root}/bin/ruby"
+              fi
+
+              bin/package "$VERSION" --target "$TARGET" "$yjit_arg" --output rubies
+              chown -R "$(stat -c %u /work):$(stat -c %g /work)" rubies .build .cache || true
+            '
+
+      - name: Upload portable Ruby
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ruby-${{ inputs.version }}-${{ matrix.target }}-yjit-${{ matrix.yjit }}
+          path: rubies/
+
+      - name: Test portable Ruby
+        run: |
+          mkdir -p jdx-ruby
           tar --strip-components 1 -C jdx-ruby -xf rubies/*.tar.gz
           export PATH="${PWD}/jdx-ruby/bin:${PATH}"
           if [[ "${{ matrix.yjit }}" == "true" ]]; then
