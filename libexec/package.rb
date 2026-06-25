@@ -151,22 +151,39 @@ class PortableRubyPackage
   def build_libyaml
     source = extract_source("libyaml", @deps.fetch("libyaml"))
     prefix = dep_prefix("libyaml")
-    run "./configure", "--disable-dependency-tracking", "--prefix=#{prefix}", "--enable-static", "--disable-shared", cwd: source
-    make source
-    make source, "install"
+    env = dependency_build_env
+    run "./configure",
+        "--disable-dependency-tracking",
+        "--prefix=#{prefix}",
+        "--enable-static",
+        "--disable-shared",
+        cwd: source,
+        env: env
+    make source, env: env
+    make source, "install", env: env
   end
 
   def build_libffi
     source = extract_source("libffi", @deps.fetch("libffi"))
     prefix = dep_prefix("libffi")
-    run "./configure", "--prefix=#{prefix}", "--disable-dependency-tracking", "--enable-static", "--disable-shared", "--disable-docs", cwd: source
-    make source
-    make source, "install"
+    env = dependency_build_env
+    run "./configure",
+        "--prefix=#{prefix}",
+        "--libdir=#{File.join(prefix, "lib")}",
+        "--disable-dependency-tracking",
+        "--enable-static",
+        "--disable-shared",
+        "--disable-docs",
+        cwd: source,
+        env: env
+    make source, env: env
+    make source, "install", env: env
   end
 
   def build_libxcrypt
     source = extract_source("libxcrypt", @deps.fetch("libxcrypt"))
     prefix = dep_prefix("libxcrypt")
+    env = dependency_build_env
     run "./configure",
         "--prefix=#{prefix}",
         "--disable-dependency-tracking",
@@ -176,22 +193,25 @@ class PortableRubyPackage
         "--disable-xcrypt-compat-files",
         "--disable-failure-tokens",
         "--disable-valgrind",
-        cwd: source
-    make source
-    make source, "install"
+        cwd: source,
+        env: env
+    make source, env: env
+    make source, "install", env: env
   end
 
   def build_zlib
     source = extract_source("zlib", @deps.fetch("zlib"))
     prefix = dep_prefix("zlib")
-    run "./configure", "--static", "--prefix=#{prefix}", cwd: source
-    make source
-    make source, "install"
+    env = dependency_build_env
+    run "./configure", "--static", "--prefix=#{prefix}", cwd: source, env: env
+    make source, env: env
+    make source, "install", env: env
   end
 
   def build_ncurses_and_libedit
     ncurses_source = extract_source("ncurses", @deps.fetch("ncurses"))
     ncurses = dep_prefix("ncurses")
+    ncurses_env = dependency_build_env
     run "./configure",
         "--disable-dependency-tracking",
         "--prefix=#{ncurses}",
@@ -205,14 +225,15 @@ class PortableRubyPackage
         "--enable-widec",
         "--with-gpm=no",
         "--without-ada",
-        cwd: ncurses_source
-    make ncurses_source
-    make ncurses_source, "install"
+        cwd: ncurses_source,
+        env: ncurses_env
+    make ncurses_source, env: ncurses_env
+    make ncurses_source, "install", env: ncurses_env
     make_ncurses_symlinks(ncurses)
 
     libedit_source = extract_source("libedit", @deps.fetch("libedit"))
     libedit = dep_prefix("libedit")
-    env = build_env(
+    env = dependency_build_env(
       "CPPFLAGS" => "-I#{File.join(ncurses, "include")} -I#{File.join(ncurses, "include", "ncursesw")}",
       "LDFLAGS" => "-L#{File.join(ncurses, "lib")}",
       "PKG_CONFIG_PATH" => File.join(ncurses, "lib", "pkgconfig")
@@ -248,6 +269,7 @@ class PortableRubyPackage
   def build_openssl
     source = extract_source("openssl", @deps.fetch("openssl"))
     prefix = dep_prefix("openssl")
+    env = dependency_build_env
     patch_openssl_cert_lookup(source)
     args = [
       "--prefix=#{prefix}",
@@ -260,9 +282,9 @@ class PortableRubyPackage
       "no-makedepend"
     ]
     args += openssl_arch_args
-    run "perl", "./Configure", *args, cwd: source
-    make source
-    make source, "install_dev"
+    run "perl", "./Configure", *args, cwd: source, env: env
+    make source, env: env
+    make source, "install_dev", env: env
     libcrypto_pc = File.join(prefix, "lib", "pkgconfig", "libcrypto.pc")
     inreplace(libcrypto_pc, "\nLibs.private:", "")
     cacert = download("cacert", @deps.fetch("cacert"))
@@ -781,6 +803,15 @@ class PortableRubyPackage
       "PKG_CONFIG" => pkgconf,
       "MAKEFLAGS" => "-j#{jobs}"
     }.merge(extra.reject { |_key, value| value.to_s.empty? })
+  end
+
+  def dependency_build_env(extra = {})
+    flags = {}
+    if linux?
+      flags["CFLAGS"] = [ENV["CFLAGS"], "-fPIC"].compact.join(" ")
+      flags["CXXFLAGS"] = [ENV["CXXFLAGS"], "-fPIC"].compact.join(" ")
+    end
+    build_env(flags.merge(extra))
   end
 
   def make(cwd, *targets, env: build_env)
