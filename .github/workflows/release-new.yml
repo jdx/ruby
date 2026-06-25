@@ -28,7 +28,7 @@ jobs:
   check-and-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # main
+      - uses: actions/checkout@b9e0990d219a03df7633c93f6f005a8fecbcab22 # main
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
