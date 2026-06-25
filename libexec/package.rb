@@ -444,12 +444,14 @@ class PortableRubyPackage
       cppflags << "-I#{File.join(dep_prefix("libxcrypt"), "include")}"
       ldflags << "-L#{File.join(dep_prefix("libxcrypt"), "lib")}"
     end
+    extra_cflags = []
+    extra_cflags << "-mno-outline-atomics" if linux_arm64?
 
     build_env(
       "PKG_CONFIG_PATH" => pkg_paths.compact.join(File::PATH_SEPARATOR),
       "CPPFLAGS" => cppflags.join(" "),
       "LDFLAGS" => ldflags.join(" "),
-      "XCFLAGS" => cppflags.join(" "),
+      "XCFLAGS" => (cppflags + extra_cflags).join(" "),
       "XLDFLAGS" => ldflags.join(" ")
     )
   end
@@ -543,12 +545,15 @@ class PortableRubyPackage
           / ?-fuse-ld=[^ ]+/,
           / ?-flto(?:=[^ ]+)?/,
           / ?[^ ]*liblto_plugin\\.so/,
+          / ?-mbranch-protection=[^ ]+/,
+          / ?-mno-outline-atomics/,
           / ?-Wduplicated-cond/,
           / ?-Wimplicit-fallthrough(?:=\\d+)?/,
           / ?-Wmisleading-indentation/
         ]
 
         darwin = CONFIG["host_os"].to_s.include?("darwin")
+        linux = CONFIG["host_os"].to_s.include?("linux")
 
         [CONFIG, MAKEFILE_CONFIG].each do |config|
           config["CC"] = "cc"
@@ -566,10 +571,16 @@ class PortableRubyPackage
           config["AR"] = "ar"
           config["NM"] = "nm"
           config["RANLIB"] = "ranlib"
-          %w[CFLAGS CPPFLAGS CXXFLAGS LDFLAGS DLDFLAGS LIBS LDSHARED LDSHAREDXX DLDSHARED warnflags].each do |key|
+          %w[CFLAGS CPPFLAGS CXXFLAGS XCFLAGS XCXXFLAGS LDFLAGS DLDFLAGS LIBS LDSHARED LDSHAREDXX DLDSHARED cflags cxxflags hardenflags warnflags].each do |key|
             next unless config[key]
             scrub_patterns.each { |pattern| config[key] = config[key].gsub(pattern, "") }
             config[key] = config[key].squeeze(" ").strip
+          end
+          if linux
+            %w[CFLAGS cflags].each do |key|
+              next unless config[key]
+              config[key] = "-std=gnu99 \#{config[key]}".squeeze(" ").strip unless config[key].include?("-std=")
+            end
           end
           config["CPPFLAGS"] = "\#{portable_cppflags} \#{config["CPPFLAGS"]}".strip
           config["LDFLAGS"] = "-L\#{portable_lib} \#{config["LDFLAGS"]}".strip
@@ -691,6 +702,12 @@ class PortableRubyPackage
   def install_default_native_gem(ruby, gem_name, env)
     version = capture(ruby, "-r#{gem_name}", "-e", "print Gem.loaded_specs.fetch(#{gem_name.dump}).version", env: env).strip
     run File.join(File.dirname(ruby), "gem"), "install", gem_name, "--version", version, "--force", env: env
+  rescue PackageError
+    Dir[File.join(File.dirname(ruby), "..", "lib", "ruby", "gems", "*", "extensions", "**", "#{gem_name}-#{version}", "mkmf.log")].each do |log|
+      puts "==> #{log}"
+      puts File.read(log)
+    end
+    raise
   end
 
   def check_no_homebrew_paths!(root, ruby, env)
@@ -811,8 +828,10 @@ class PortableRubyPackage
   def dependency_build_env(extra = {})
     flags = {}
     if linux?
-      flags["CFLAGS"] = [ENV["CFLAGS"], "-fPIC"].compact.join(" ")
-      flags["CXXFLAGS"] = [ENV["CXXFLAGS"], "-fPIC"].compact.join(" ")
+      compile_flags = ["-fPIC"]
+      compile_flags << "-mno-outline-atomics" if linux_arm64?
+      flags["CFLAGS"] = [ENV["CFLAGS"], *compile_flags].compact.join(" ")
+      flags["CXXFLAGS"] = [ENV["CXXFLAGS"], *compile_flags].compact.join(" ")
     end
     build_env(flags.merge(extra))
   end
@@ -839,6 +858,10 @@ class PortableRubyPackage
 
   def linux?
     @target_recipe.fetch("os") == "linux"
+  end
+
+  def linux_arm64?
+    linux? && target == "arm64_linux"
   end
 
   def macos?
