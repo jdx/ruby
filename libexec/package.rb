@@ -112,7 +112,10 @@ class PortableRubyPackage
     if @target_recipe.fetch("os") == "linux"
       raise PackageError, "#{target} must be built inside a Linux container" unless host_os.include?("linux")
       glibc = `getconf GNU_LIBC_VERSION 2>/dev/null`.split.last
-      warn "Warning: expected glibc #{@target_recipe["max_glibc"]}, found #{glibc}" if glibc && glibc != @target_recipe["max_glibc"]
+      if glibc && glibc != @target_recipe["max_glibc"]
+        raise PackageError, "expected glibc #{@target_recipe["max_glibc"]}, found #{glibc}; " \
+                            "Linux targets must be built inside the manylinux2014 container"
+      end
     elsif !host_os.include?("darwin")
       raise PackageError, "macos target must be built on macOS"
     end
@@ -314,13 +317,7 @@ class PortableRubyPackage
 
     baseruby = ENV["JDX_RUBY_BASERUBY"]
     if @series["requires_matching_baseruby"]
-      raise PackageError, "Ruby #{version} requires JDX_RUBY_BASERUBY" if baseruby.to_s.empty?
-      unless File.executable?(baseruby)
-        raise PackageError, "JDX_RUBY_BASERUBY must point to an executable Ruby #{version}"
-      end
-      unless ruby_version_matches?(baseruby)
-        raise PackageError, "JDX_RUBY_BASERUBY must be Ruby #{version}"
-      end
+      baseruby = matching_baseruby(baseruby)
       args << "--with-baseruby=#{baseruby}"
       args << "MJIT_CC=/usr/bin/#{ENV.fetch("CC", "cc")}"
     elsif baseruby && !baseruby.empty?
@@ -351,6 +348,48 @@ class PortableRubyPackage
 
     ENV["OPENSSL_PREFIX"] = openssl
     args
+  end
+
+  def matching_baseruby(candidate)
+    unless candidate.to_s.empty?
+      raise PackageError, "JDX_RUBY_BASERUBY must point to an executable Ruby #{version}" unless File.executable?(candidate)
+      raise PackageError, "JDX_RUBY_BASERUBY must be Ruby #{version}" unless ruby_version_matches?(candidate)
+      return candidate
+    end
+
+    build_matching_baseruby!
+  end
+
+  def build_matching_baseruby!
+    @matching_baseruby ||= begin
+      bootstrap = RbConfig.ruby
+      unless ruby_at_least?(bootstrap, "3.0.0")
+        raise PackageError, "Ruby #{version} requires a baseruby >= 3.0.0 to build a matching baseruby"
+      end
+
+      source = extract_source("baseruby", @ruby_recipe)
+      prefix = File.join(@build_root, "baseruby")
+      env = build_env("BASERUBY" => bootstrap, "LC_ALL" => "C.UTF-8", "LANG" => "C.UTF-8")
+      args = [
+        "--prefix=#{prefix}",
+        "--disable-install-doc",
+        "--disable-dependency-tracking",
+        "--with-baseruby=#{bootstrap}",
+        "--without-gmp",
+        "--with-out-ext=win32,win32ole,openssl,psych,zlib,readline,fiddle"
+      ]
+      args << "MKDIR_P=/bin/mkdir -p" if linux?
+
+      run "./configure", *args, cwd: source, env: env
+      make source, env: env
+      make source, "install", env: env
+
+      ruby = File.join(prefix, "bin", "ruby")
+      unless File.executable?(ruby) && ruby_version_matches?(ruby)
+        raise PackageError, "failed to build matching baseruby #{version}"
+      end
+      ruby
+    end
   end
 
   def ruby_version_matches?(ruby)
@@ -650,7 +689,7 @@ class PortableRubyPackage
   end
 
   def check_abi!(root)
-    return unless find_executable("readelf")
+    raise PackageError, "Linux ABI checks require readelf from binutils" unless find_executable("readelf")
 
     max = @target_recipe.fetch("max_glibc").split(".").map(&:to_i)
     Dir.glob(File.join(root, "**", "*")).each do |path|

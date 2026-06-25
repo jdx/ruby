@@ -26,7 +26,7 @@ class UpdateRubyRecipe
   end
 
   def run!
-    doc = YAML.load_file(RECIPE_PATH)
+    doc = YAML.safe_load(File.read(RECIPE_PATH), permitted_classes: [], aliases: false)
     rubies = doc.fetch("rubies")
     old = rubies[@version]
     entry = recipe_entry
@@ -56,15 +56,23 @@ class UpdateRubyRecipe
   end
 
   def version_sort_key(version)
-    version.scan(/\d+|[a-z]+/i).map do |part|
-      part.match?(/\A\d+\z/) ? [0, part.to_i] : [1, part.downcase]
+    release, pre = version.split("-", 2)
+    numeric = release.split(".").map(&:to_i)
+    pre_key = if pre
+      name, number = pre.match(/\A([a-z]+)(\d+)?\z/i)&.captures
+      [0, name.downcase, number.to_i]
+    else
+      [1]
     end
+    [numeric, pre_key]
   end
 end
 
-begin
-  UpdateRubyRecipe.run!(ARGV)
-rescue UpdateRubyRecipeError => e
-  warn "error: #{e.message}"
-  exit 1
+if $PROGRAM_NAME == __FILE__
+  begin
+    UpdateRubyRecipe.run!(ARGV)
+  rescue UpdateRubyRecipeError => e
+    warn "error: #{e.message}"
+    exit 1
+  end
 end
