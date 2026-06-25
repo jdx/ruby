@@ -1,4 +1,4 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative "../libexec/update_ruby_recipe"
+exec RbConfig.ruby, File.expand_path("../libexec/update_ruby_recipe.rb", __dir__), *ARGV
