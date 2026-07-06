@@ -19,7 +19,7 @@ jobs:
   build-macos:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@4f1f4aec02e41874fa0262ea8ff5172d7978ad1e # main
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - uses: ruby/setup-ruby@v1
         id: setup-ruby
@@ -70,7 +70,7 @@ jobs:
             yjit: false
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@4f1f4aec02e41874fa0262ea8ff5172d7978ad1e # main
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version

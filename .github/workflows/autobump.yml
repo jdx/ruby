@@ -17,7 +17,7 @@ jobs:
   autobump:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@4f1f4aec02e41874fa0262ea8ff5172d7978ad1e # main
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
       - uses: ruby/setup-ruby@v1
