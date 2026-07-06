@@ -65,7 +65,7 @@ class UpdateRubyRecipe
     if existing
       lines[existing.fetch(:start)...existing.fetch(:finish)] = block_lines
     else
-      insert_at = blocks.find { |block| version_sort_key(block.fetch(:version)) > version_sort_key(@version) }&.fetch(:start)
+      insert_at = blocks.find { |block| (version_sort_key(block.fetch(:version)) <=> version_sort_key(@version)) > 0 }&.fetch(:start)
       lines.insert(insert_at || lines.length, *block_lines)
     end
 
