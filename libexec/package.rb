@@ -583,6 +583,8 @@ class PortableRubyPackage
           config["AR"] = "ar"
           config["NM"] = "nm"
           config["RANLIB"] = "ranlib"
+          # Let mkmf honor ENV["PKG_CONFIG"] or find pkg-config on PATH.
+          config["PKG_CONFIG"] = ""
           %w[CFLAGS CPPFLAGS CXXFLAGS XCFLAGS XCXXFLAGS LDFLAGS DLDFLAGS LIBS LDSHARED LDSHAREDXX DLDSHARED cflags cxxflags hardenflags warnflags].each do |key|
             next unless config[key]
             scrub_patterns.each { |pattern| config[key] = config[key].gsub(pattern, "") }
