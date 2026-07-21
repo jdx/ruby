@@ -4,6 +4,9 @@ targets:
   macos:
     os: macos
     artifact_platform: macos
+  x86_64_macos:
+    os: macos
+    artifact_platform: x86_64_macos
   x86_64_linux:
     os: linux
     artifact_platform: x86_64_linux
