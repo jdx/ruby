@@ -268,6 +268,20 @@ jobs:
           # Publish pinned revision release
           gh release edit "${REVISION_TAG}" --draft=false --latest=false $prerelease_flag --repo "${{ github.repository }}"
 
+  comment-release-fixes:
+    needs: [create-release, publish-release]
+    if: ${{ needs.publish-release.result == 'success' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+      discussions: write
+    uses: jdx/workflows/.github/workflows/comment-release-fixes.yml@4c952564543dd54d60f15ef4062af7fb60c5561d # v1.1.0
+    with:
+      tag: ${{ needs.create-release.outputs.revision_tag }}
+      tag_pattern: '^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$'
+      marker_prefix: ruby-fixed-in
+
   notify:
     needs: [build, combine-hashes, create-release, provenance, upload-assets, publish-release]
     runs-on: ubuntu-latest
