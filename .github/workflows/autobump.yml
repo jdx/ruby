@@ -74,8 +74,8 @@ jobs:
 
             bin/update-ruby-recipe "$latest" "$tarball_url" "$sha256"
             bin/validate-recipes
-            if ! git diff --quiet -- recipes/rubies.yml; then
-              git add recipes/rubies.yml
+            if ! git diff --quiet -- recipes/rubies.yml recipes/series.yml; then
+              git add recipes/rubies.yml recipes/series.yml
               git commit -m "Add Ruby ${latest}"
             fi
           done
@@ -121,8 +121,8 @@ jobs:
 
             bin/update-ruby-recipe "$version" "$tarball_url" "$sha256"
             bin/validate-recipes
-            if ! git diff --quiet -- recipes/rubies.yml; then
-              git add recipes/rubies.yml
+            if ! git diff --quiet -- recipes/rubies.yml recipes/series.yml; then
+              git add recipes/rubies.yml recipes/series.yml
               git commit -m "Add Ruby ${version}"
             fi
           done
