@@ -8,6 +8,7 @@ class UpdateRubyRecipeError < StandardError; end
 class UpdateRubyRecipe
   ROOT = File.expand_path("..", __dir__)
   RECIPE_PATH = File.join(ROOT, "recipes", "rubies.yml")
+  SERIES_PATH = File.join(ROOT, "recipes", "series.yml")
   PRE_RELEASE_RANK = {
     "preview" => 0,
     "rc" => 1
@@ -34,6 +35,7 @@ class UpdateRubyRecipe
     rubies = doc.fetch("rubies")
     old = rubies[@version]
     entry = recipe_entry
+    register_series(entry.fetch("series"))
     if old == entry
       puts "Ruby #{@version} already exists in recipes/rubies.yml"
       return
@@ -45,6 +47,16 @@ class UpdateRubyRecipe
   end
 
   private
+
+  # A new minor series has no overrides yet, so it gets the defaults.
+  def register_series(name)
+    text = File.read(SERIES_PATH)
+    doc = YAML.safe_load(text, permitted_classes: [], aliases: false)
+    return if doc.fetch("series").key?(name)
+
+    File.write(SERIES_PATH, "#{text.chomp}\n  \"#{name}\": {}\n")
+    puts "Added series #{name} in recipes/series.yml"
+  end
 
   def recipe_entry
     entry = {
