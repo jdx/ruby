@@ -192,3 +192,7 @@ rubies:
     series: '4.0'
     url: https://cache.ruby-lang.org/pub/ruby/4.0/ruby-4.0.7.tar.gz
     sha256: 911ace20f90d068ca0e4dda6d0e4f0f81e52e52f2dd4f4004c721e253412e82d
+  4.0.8:
+    series: '4.0'
+    url: https://cache.ruby-lang.org/pub/ruby/4.0/ruby-4.0.8.tar.gz
+    sha256: 0968e2ac4cbd6f1fd85d3092aed66cd3c2d8ba4a5e2493d6e6c6cb0c431897d2
