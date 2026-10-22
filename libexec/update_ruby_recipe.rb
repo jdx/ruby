@@ -35,6 +35,7 @@ class UpdateRubyRecipe
     rubies = doc.fetch("rubies")
     old = rubies[@version]
     entry = recipe_entry
+    register_series(entry.fetch("series"))
     if old == entry
       puts "Ruby #{@version} already exists in recipes/rubies.yml"
       return
@@ -42,7 +43,6 @@ class UpdateRubyRecipe
 
     rubies[@version] = entry
     File.write(RECIPE_PATH, updated_recipe_text(File.read(RECIPE_PATH), rubies))
-    register_series(entry.fetch("series"))
     puts "#{old ? "Updated" : "Added"} Ruby #{@version} in recipes/rubies.yml"
   end
 
