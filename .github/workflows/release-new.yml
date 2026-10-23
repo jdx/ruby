@@ -45,7 +45,7 @@ jobs:
             echo "Replacing all releases"
           else
             # Must cover every release: a capped listing drops the oldest ones and they get rebuilt.
-            existing_releases=$(gh release list --limit 10000 --json tagName --jq '.[].tagName' || true)
+            existing_releases=$(gh release list --limit 10000 --json tagName --jq '.[].tagName')
             versions_to_release=""
             for version in $recipe_versions; do
               if ! echo "$existing_releases" | grep -q "^${version}$"; then
