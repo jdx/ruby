@@ -97,6 +97,10 @@ rubies:
     series: '3.3'
     url: https://cache.ruby-lang.org/pub/ruby/3.3/ruby-3.3.12.tar.gz
     sha256: b06d63beae271933033e27f0a389bc582a009e7845357d44365c39de525a051b
+  3.3.13:
+    series: '3.3'
+    url: https://cache.ruby-lang.org/pub/ruby/3.3/ruby-3.3.13.tar.gz
+    sha256: 4cae72e971bd1cdb20ca87d299111182417c5276c162de8ead0ab0531426cd61
   3.4.0:
     series: '3.4'
     url: https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.0.tar.gz
