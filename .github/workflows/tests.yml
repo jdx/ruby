@@ -28,6 +28,7 @@ jobs:
           ruby -c libexec/package.rb
           ruby -c libexec/validate_recipes.rb
           ruby -c libexec/update_ruby_recipe.rb
+          ruby -c libexec/update_bundled_gems.rb
 
   build:
     needs: syntax
@@ -36,10 +37,24 @@ jobs:
     with:
       version: 3.4.1
 
+  # Ruby 3.2 and 3.3 carry their own bundled gem pins, which the 3.4.1 build
+  # above does not exercise, so check them on the autobump gem PR.
+  build-older:
+    needs: syntax
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'autobump/')
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["3.2.9", "3.3.14"]
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ matrix.version }}
+
   final:
     needs:
       - syntax
       - build
+      - build-older
     runs-on: ubuntu-latest
     timeout-minutes: 1
     if: always()

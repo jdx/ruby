@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: autobump
+  cancel-in-progress: false
+
 jobs:
   autobump:
     runs-on: ubuntu-latest
@@ -134,6 +138,42 @@ jobs:
           else
             echo "No recipe changes to push"
           fi
+
+      - name: Bump bundled gems
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch=autobump/bundled-gems
+          open_prs=$(gh pr list --head "$branch" --state open --json number --jq '.[].number')
+          if [ -n "$open_prs" ]; then
+            echo "A bundled gems bump PR is already open"
+            exit 0
+          fi
+
+          git fetch origin main
+          git checkout -B "$branch" origin/main
+          summary=$(bin/update-bundled-gems)
+          echo "$summary"
+          if git diff --quiet -- recipes/series.yml; then
+            exit 0
+          fi
+
+          bin/validate-recipes
+          git add recipes/series.yml
+          git commit -m "chore(deps): bump bundled gems" -m "$summary"
+          git push --force origin "$branch"
+          body=$(mktemp)
+          {
+            echo "Newest stable releases of the gems staged into every portable Ruby, within the same major version and the series minimum Ruby."
+            echo
+            while IFS= read -r line; do echo "- $line"; done <<< "$summary"
+            echo
+            echo "Opened by the autobump workflow; the build jobs validate the new gems."
+          } > "$body"
+          gh pr create --base main --head "$branch" \
+            --title "chore(deps): bump bundled gems" \
+            --body-file "$body"
 
   notify-failure:
     needs: autobump
