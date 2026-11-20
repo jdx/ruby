@@ -37,6 +37,7 @@ YJIT builds require `rustup` or `rustc` in `PATH`. Set `JDX_RUBY_RUSTUP_HOME` to
 ### Commands
 
 - `bin/package`: Builds portable dependencies, builds Ruby, runs runtime/linkage/ABI checks, and writes release tarballs.
+- `bin/update-bundled-gems`: Bumps the bundled `msgpack` and `bootsnap` gems in `recipes/series.yml` to the newest stable release with the same major version that the series' minimum Ruby supports. The autobump workflow runs it and opens a PR.
 - `bin/validate-recipes`: Validates YAML shape, required fields, duplicate versions, URL/SHA256 formats, and target matrix completeness.
 - `bin/update-ruby-recipe`: Adds or updates a Ruby entry in `recipes/rubies.yml`; used by autobump.
 

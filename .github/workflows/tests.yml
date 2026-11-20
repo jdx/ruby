@@ -28,6 +28,7 @@ jobs:
           ruby -c libexec/package.rb
           ruby -c libexec/validate_recipes.rb
           ruby -c libexec/update_ruby_recipe.rb
+          ruby -c libexec/update_bundled_gems.rb
 
   build:
     needs: syntax
