@@ -97,7 +97,7 @@ class UpdateBundledGems
 
       version = Gem::Version.new(release.fetch("number"))
       version.segments.first == current.segments.first &&
-        Gem::Requirement.new(release["ruby_version"] || ">= 0").satisfied_by?(entry.min_ruby)
+        Gem::Requirement.new(*(release["ruby_version"] || ">= 0").split(",").map(&:strip)).satisfied_by?(entry.min_ruby)
     end
     candidates.max_by { |release| Gem::Version.new(release.fetch("number")) }
   end

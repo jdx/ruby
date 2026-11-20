@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: autobump
+  cancel-in-progress: false
+
 jobs:
   autobump:
     runs-on: ubuntu-latest
@@ -141,7 +145,8 @@ jobs:
         run: |
           set -euo pipefail
           branch=autobump/bundled-gems
-          if gh pr list --head "$branch" --state open --json number --jq '.[0].number' | grep -q .; then
+          open_prs=$(gh pr list --head "$branch" --state open --json number --jq '.[].number')
+          if [ -n "$open_prs" ]; then
             echo "A bundled gems bump PR is already open"
             exit 0
           fi
