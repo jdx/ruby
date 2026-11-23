@@ -10,8 +10,8 @@ on:
   schedule:
     # Hourly: look for new Ruby releases (the check job needs no checkout).
     - cron: "17 * * * *"
-    # Twice a day: also look for new bundled gem versions.
-    - cron: "47 4,16 * * *"
+    # Weekly: also look for new bundled gem versions.
+    - cron: "47 4 * * 1"
 
 permissions:
   contents: write

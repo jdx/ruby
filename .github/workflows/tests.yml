@@ -23,6 +23,8 @@ jobs:
           ruby-version: .ruby-version
       - name: Validate recipes
         run: bin/validate-recipes
+      - name: Test the autobump check
+        run: test/autobump_check_test.sh
       - name: Check Ruby syntax
         run: |
           ruby -c libexec/package.rb
