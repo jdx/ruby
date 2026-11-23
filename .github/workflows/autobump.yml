@@ -8,7 +8,10 @@ on:
       - .github/workflows/autobump.yml
   workflow_dispatch:
   schedule:
-    - cron: "0 0,12 * * *"
+    # Hourly: look for new Ruby releases (the check job needs no checkout).
+    - cron: "17 * * * *"
+    # Twice a day: also look for new bundled gem versions.
+    - cron: "47 4,16 * * *"
 
 permissions:
   contents: write
@@ -18,8 +21,68 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  autobump:
+  # Cheap pre-filter: compares upstream's tags with recipes/rubies.yml using
+  # `git ls-remote` (no API calls) and a raw file fetch, so the common
+  # nothing-new run needs no checkout, Ruby setup or token.
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      needs_bump: ${{ steps.compare.outputs.needs_bump }}
+    steps:
+      - name: Compare upstream tags with the recipes
+        id: compare
+        env:
+          RECIPES_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/recipes/rubies.yml
+        run: |
+          set -euo pipefail
+          # Every release has a tag, so the tag list is a superset of the
+          # release list the bump job reads: this can only over-report.
+          all_tags=$(git ls-remote --tags https://github.com/ruby/ruby.git \
+            | sed -n 's|.*refs/tags/||p' | grep -v '\^{}$')
+          recipes=$(curl -fsSL --retry 3 "$RECIPES_URL" | yq '.rubies | keys | .[]')
+
+          has_recipe() { grep -qxF -- "$1" <<< "$recipes"; }
+          needs_bump=false
+
+          stable=$(grep -viE '(preview|rc)' <<< "$all_tags" | sed 's/^v//; s/_/./g' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          series=$(grep -oE '^[0-9]+\.[0-9]+' <<< "$stable" | sort -V -u | awk -F. '$1 > 3 || ($1 == 3 && $2 >= 2)')
+          for minor in $series; do
+            latest=$(grep -E "^${minor//./\\.}\.[0-9]+$" <<< "$stable" | sort -V | tail -1)
+            if ! has_recipe "$latest"; then
+              echo "New stable Ruby: $latest"
+              needs_bump=true
+            fi
+          done
+
+          while read -r tag; do
+            [ -n "$tag" ] || continue
+            if grep -q '\.' <<< "$tag"; then
+              version=${tag#v}
+            else
+              version=$(sed 's/^v//; s/_/./g' <<< "$tag" | sed 's/\.\(preview\)/-\1/i; s/\.\(rc\)/-\1/i')
+            fi
+            minor=$(grep -oE '^[0-9]+\.[0-9]+' <<< "$version" || true)
+            [ -n "$minor" ] || continue
+            awk -F. '$1 > 3 || ($1 == 3 && $2 >= 2) { ok = 1 } END { exit !ok }' <<< "$minor" || continue
+            if grep -qxE "v${minor//./_}_[0-9]+|v${minor//./\\.}\.[0-9]+" <<< "$all_tags"; then
+              continue
+            fi
+            if ! has_recipe "$version"; then
+              echo "New prerelease Ruby: $version"
+              needs_bump=true
+            fi
+          done < <(grep -iE '(preview|rc)' <<< "$all_tags" || true)
+
+          echo "needs_bump=$needs_bump" >> "$GITHUB_OUTPUT"
+          echo "needs_bump=$needs_bump"
+
+  autobump:
+    needs: check
+    if: needs.check.outputs.needs_bump == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -139,6 +202,24 @@ jobs:
             echo "No recipe changes to push"
           fi
 
+  bundled-gems:
+    # Not on the hourly schedule: gem releases are slow, and the script queries rubygems.
+    if: github.event.schedule != '17 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Bump bundled gems
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
@@ -176,7 +257,7 @@ jobs:
             --body-file "$body"
 
   notify-failure:
-    needs: autobump
+    needs: [check, autobump, bundled-gems]
     if: ${{ failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
