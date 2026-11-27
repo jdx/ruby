@@ -150,13 +150,21 @@ jobs:
 
           TARGET="$(git rev-parse --verify HEAD)"
 
-          # Delete ALL existing floating releases matching this version (handles orphaned releases)
-          for release_id in $(gh api repos/${{ github.repository }}/releases --paginate --jq ".[] | select(.name == \"${VERSION}\" or .tag_name == \"${VERSION}\") | .id"); do
+          # Delete ALL existing floating releases matching this version (handles orphaned releases).
+          # List into a variable first so an API error (e.g. a rate limit) fails the step under
+          # `bash -e`; looping over the output directly word-splits the error body into "ids".
+          release_ids=$(gh api repos/${{ github.repository }}/releases --paginate --jq ".[] | select(.name == \"${VERSION}\" or .tag_name == \"${VERSION}\") | .id")
+          for release_id in $release_ids; do
             echo "Deleting release $release_id"
-            gh api -X DELETE "repos/${{ github.repository }}/releases/$release_id" || true
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$release_id"
           done
-          # Also delete the tag if it exists
-          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/${VERSION}" 2>/dev/null || true
+          # Also delete the tag if it exists; only a missing ref is ignored
+          if ! out=$(gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/${VERSION}" 2>&1); then
+            if ! grep -qE 'HTTP (404|422)' <<<"$out"; then
+              echo "$out"
+              exit 1
+            fi
+          fi
 
           # Create floating release (e.g., 3.4.5) — always updated to latest build
           gh release create "${VERSION}" \
