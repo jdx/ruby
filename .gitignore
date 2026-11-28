@@ -2,3 +2,4 @@
 .cache/
 rubies/
 .claude/settings.local.json
+.wrangler/

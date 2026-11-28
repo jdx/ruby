@@ -7,8 +7,15 @@ on:
     paths:
       - .github/workflows/autobump.yml
   workflow_dispatch:
+    inputs:
+      rubies_only:
+        description: Only look for new Ruby releases, not bundled gem updates
+        type: boolean
+        default: false
   schedule:
     # Hourly: look for new Ruby releases (the check job needs no checkout).
+    # GitHub drops most of these runs, so watcher/ dispatches this workflow
+    # within a minute of a release; this cron is the fallback.
     - cron: "17 * * * *"
     # Weekly: also look for new bundled gem versions.
     - cron: "47 4 * * 1"
@@ -203,8 +210,9 @@ jobs:
           fi
 
   bundled-gems:
-    # Not on the hourly schedule: gem releases are slow, and the script queries rubygems.
-    if: github.event.schedule != '17 * * * *'
+    # Not on the hourly schedule or the release watcher's dispatches (watcher/):
+    # gem releases are slow, and the script queries rubygems.
+    if: github.event.schedule != '17 * * * *' && !inputs.rubies_only
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

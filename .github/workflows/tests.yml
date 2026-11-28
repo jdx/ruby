@@ -25,6 +25,8 @@ jobs:
         run: bin/validate-recipes
       - name: Test the autobump check
         run: test/autobump_check_test.sh
+      - name: Test the release watcher
+        run: node --test watcher/test/*.test.mjs
       - name: Check Ruby syntax
         run: |
           ruby -c libexec/package.rb
