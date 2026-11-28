@@ -79,6 +79,7 @@ function stubGitHub({ releases, runs }) {
     if (path === "/repos/jdx/ruby/contents/recipes/rubies.yml") return new Response(recipesYaml);
     if (path.endsWith("/runs")) return Response.json({ workflow_runs: runs });
     if (path.endsWith("/dispatches")) {
+      assert.equal(init.headers["content-type"], "application/json");
       assert.deepEqual(JSON.parse(init.body), { ref: "main", inputs: { rubies_only: "true" } });
       return new Response(null, { status: 204 });
     }

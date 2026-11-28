@@ -30,6 +30,7 @@ async function github(env, path, init = {}) {
       authorization: `Bearer ${env.GITHUB_TOKEN}`,
       "user-agent": "jdx-ruby-release-watcher",
       "x-github-api-version": "2022-11-28",
+      ...(init.body ? { "content-type": "application/json" } : {}),
       ...init.headers,
     },
   });
