@@ -113,6 +113,13 @@ test("waits while autobump is already running", async () => {
   stubGitHub({ releases: [release("v4.1.0", 1), ...upToDate], runs: [run("in_progress", 1)] });
   assert.equal((await check(env, NOW)).action, "running");
 });
+test("sees an older run still working under a cancelled one", async () => {
+  stubGitHub({
+    releases: [release("v4.1.0", 1), ...upToDate],
+    runs: [run("completed", 1), run("in_progress", 4)],
+  });
+  assert.equal((await check(env, NOW)).action, "running");
+});
 test("waits out the cooldown after a recent run", async () => {
   stubGitHub({ releases: [release("v4.1.0", 10), ...upToDate], runs: [run("completed", 2)] });
   assert.equal((await check(env, NOW)).action, "cooldown");

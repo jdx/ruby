@@ -60,14 +60,17 @@ export async function check(env, now = Date.now()) {
   if (cooldowns.length === 0) return { action: "stale", versions };
   const cooldown = Math.min(...cooldowns);
 
+  // Newest first. Look past the newest run: a queued run that concurrency
+  // cancelled can sit on top while an older one is still working.
   const { workflow_runs: runs } = await github(
     env,
-    `/repos/${repo}/actions/workflows/${WORKFLOW}/runs?per_page=1`,
+    `/repos/${repo}/actions/workflows/${WORKFLOW}/runs?per_page=20`,
   ).then((r) => r.json());
-  const last = runs[0];
-  if (last && last.status !== "completed") {
-    return { action: "running", versions, run: last.html_url };
+  const active = runs.find((r) => r.status !== "completed");
+  if (active) {
+    return { action: "running", versions, run: active.html_url };
   }
+  const last = runs[0];
   if (last && now - Date.parse(last.created_at) < cooldown * 60000) {
     return { action: "cooldown", versions, run: last.html_url };
   }
