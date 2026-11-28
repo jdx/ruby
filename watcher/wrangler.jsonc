@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "ruby-release-watcher",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-11-01",
+  // Scheduled only: no public URL that could spend the token's rate limit.
+  "workers_dev": false,
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": { "REPO": "jdx/ruby" },
+  "observability": { "enabled": true }
+}
